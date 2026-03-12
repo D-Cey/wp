@@ -1,0 +1,383 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { getConversations, getMessages, sendMessage, markRead, updateContactName } from '../api';
+
+function timeAgo(dt) {
+  if (!dt) return '';
+  const d = new Date(dt);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'şimdi';
+  if (diff < 3600) return `${Math.floor(diff / 60)}dk`;
+  if (diff < 86400) return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+}
+
+function fullTime(dt) {
+  if (!dt) return '';
+  return new Date(dt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+}
+
+export default function InboxPanel({ conversations, onConversationsUpdate }) {
+  const [selected, setSelected] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [messageInput, setMessageInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [search, setSearch] = useState('');
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
+    if (selected) {
+      loadMessages(selected.id);
+    }
+  }, [selected?.id]);
+
+  // Update messages when new message arrives for selected conversation
+  useEffect(() => {
+    if (selected) {
+      const updated = conversations.find(c => c.id === selected.id);
+      if (updated) setSelected(updated);
+      loadMessages(selected.id);
+    }
+  }, [conversations]);
+
+  const loadMessages = async (convId) => {
+    try {
+      const res = await getMessages(convId);
+      setMessages(res.data);
+      await markRead(convId);
+    } catch (e) {}
+  };
+
+  const selectConversation = async (conv) => {
+    setSelected(conv);
+    setEditingName(false);
+    setNameInput('');
+  };
+
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !selected || sending) return;
+    setSending(true);
+    try {
+      await sendMessage(selected.number_id, selected.contact_wa_id.replace('@c.us', ''), messageInput.trim());
+      setMessageInput('');
+      await loadMessages(selected.id);
+    } catch (err) {
+      alert('Mesaj gönderilemedi: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSaveName = async () => {
+    if (!nameInput.trim() || !selected) return;
+    try {
+      const res = await updateContactName(selected.contact_wa_id, nameInput.trim());
+      onConversationsUpdate(res.data.conversations);
+      setEditingName(false);
+    } catch (e) {}
+  };
+
+  const filtered = conversations.filter(c => {
+    const name = c.contact_name || c.contact_phone || '';
+    return name.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const displayName = (conv) => conv.contact_name || conv.contact_phone || conv.contact_wa_id;
+
+  return (
+    <div style={styles.container}>
+      {/* Sol Panel - Konuşmalar */}
+      <div style={styles.sidebar}>
+        <div style={styles.sidebarHeader}>
+          <h2 style={styles.sidebarTitle}>Konuşmalar</h2>
+          <span style={styles.convCount}>{conversations.length}</span>
+        </div>
+        <div style={styles.searchWrap}>
+          <input
+            style={styles.searchInput}
+            placeholder="Ara..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div style={styles.convList}>
+          {filtered.length === 0 && (
+            <div style={styles.emptyConvs}>
+              <p>Henüz konuşma yok</p>
+              <p style={styles.emptyHint}>Yeni Mesaj sekmesinden başlatın</p>
+            </div>
+          )}
+          {filtered.map(conv => (
+            <div
+              key={conv.id}
+              style={{
+                ...styles.convItem,
+                ...(selected?.id === conv.id ? styles.convItemActive : {}),
+              }}
+              onClick={() => selectConversation(conv)}
+            >
+              <div style={styles.convAvatar}>
+                {(displayName(conv)[0] || '?').toUpperCase()}
+              </div>
+              <div style={styles.convContent}>
+                <div style={styles.convTopRow}>
+                  <span style={styles.convName}>{displayName(conv)}</span>
+                  <span style={styles.convTime}>{timeAgo(conv.last_message_at)}</span>
+                </div>
+                <div style={styles.convBottomRow}>
+                  <span style={styles.convPreview}>
+                    <span style={styles.convNumberTag}>{conv.number_label}</span>
+                    {conv.last_message}
+                  </span>
+                  {conv.unread_count > 0 && (
+                    <span style={styles.unreadBadge}>{conv.unread_count}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sağ Panel - Mesajlar */}
+      <div style={styles.chatArea}>
+        {!selected ? (
+          <div style={styles.noChatSelected}>
+            <div style={styles.noChatIcon}>💬</div>
+            <h3 style={styles.noChatTitle}>Konuşma Seçin</h3>
+            <p style={styles.noChatHint}>Sol menüden bir konuşmaya tıklayın</p>
+          </div>
+        ) : (
+          <>
+            {/* Chat Header */}
+            <div style={styles.chatHeader}>
+              <div style={styles.chatAvatar}>
+                {(displayName(selected)[0] || '?').toUpperCase()}
+              </div>
+              <div style={styles.chatHeaderInfo}>
+                {editingName ? (
+                  <div style={styles.nameEditRow}>
+                    <input
+                      style={styles.nameInput}
+                      value={nameInput}
+                      onChange={e => setNameInput(e.target.value)}
+                      placeholder="İsim girin..."
+                      autoFocus
+                      onKeyDown={e => e.key === 'Enter' && handleSaveName()}
+                    />
+                    <button style={styles.saveNameBtn} onClick={handleSaveName}>Kaydet</button>
+                    <button style={styles.cancelNameBtn} onClick={() => setEditingName(false)}>İptal</button>
+                  </div>
+                ) : (
+                  <div style={styles.chatNameRow}>
+                    <span style={styles.chatName}>{displayName(selected)}</span>
+                    <button
+                      style={styles.editNameBtn}
+                      onClick={() => { setEditingName(true); setNameInput(selected.contact_name || ''); }}
+                      title="İsim düzenle"
+                    >✏️</button>
+                  </div>
+                )}
+                <div style={styles.chatMeta}>
+                  <span style={styles.chatPhone}>{selected.contact_phone}</span>
+                  <span style={styles.chatMetaDot}>·</span>
+                  <span style={styles.chatNumberTag}>{selected.number_label}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div style={styles.messages}>
+              {messages.length === 0 && (
+                <div style={styles.noMessages}>Mesaj bulunamadı</div>
+              )}
+              {messages.map((msg, i) => {
+                const isMe = msg.from_me === 1;
+                return (
+                  <div key={msg.id} style={{ ...styles.msgRow, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                    <div style={{ ...styles.msgBubble, ...(isMe ? styles.msgBubbleMe : styles.msgBubbleThem) }}>
+                      <p style={styles.msgText}>{msg.body}</p>
+                      <span style={styles.msgTime}>{fullTime(msg.timestamp)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Message Input */}
+            <form onSubmit={handleSend} style={styles.inputArea}>
+              <input
+                style={styles.messageInput}
+                placeholder="Mesaj yaz..."
+                value={messageInput}
+                onChange={e => setMessageInput(e.target.value)}
+                disabled={sending}
+              />
+              <button
+                style={{ ...styles.sendBtn, opacity: (!messageInput.trim() || sending) ? 0.5 : 1 }}
+                type="submit"
+                disabled={!messageInput.trim() || sending}
+              >
+                {sending ? '...' : '➤'}
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  container: {
+    display: 'flex', height: '100%', flex: 1,
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  // Sidebar
+  sidebar: {
+    width: '320px', minWidth: '280px',
+    background: '#0d0d14', borderRight: '1px solid #1a1a24',
+    display: 'flex', flexDirection: 'column',
+  },
+  sidebarHeader: {
+    padding: '20px 20px 12px',
+    display: 'flex', alignItems: 'center', gap: '8px',
+    borderBottom: '1px solid #1a1a24',
+  },
+  sidebarTitle: { color: '#fff', margin: 0, fontSize: '17px', fontWeight: '600', flex: 1 },
+  convCount: {
+    background: '#1e1e2e', color: '#666',
+    fontSize: '12px', padding: '2px 8px', borderRadius: '20px',
+  },
+  searchWrap: { padding: '12px 16px', borderBottom: '1px solid #1a1a24' },
+  searchInput: {
+    width: '100%', background: '#111118', border: '1px solid #2a2a3a',
+    borderRadius: '8px', padding: '8px 12px', color: '#fff', fontSize: '14px',
+    outline: 'none', fontFamily: "'DM Sans', sans-serif",
+    boxSizing: 'border-box',
+  },
+  convList: { flex: 1, overflowY: 'auto' },
+  emptyConvs: { textAlign: 'center', padding: '40px 20px', color: '#444' },
+  emptyHint: { fontSize: '13px', color: '#333', marginTop: '8px' },
+  convItem: {
+    display: 'flex', gap: '12px', padding: '14px 16px',
+    cursor: 'pointer', borderBottom: '1px solid #111118',
+    transition: 'background 0.15s',
+  },
+  convItemActive: { background: '#111118' },
+  convAvatar: {
+    width: '42px', height: '42px', borderRadius: '50%',
+    background: '#1e2d1e', color: '#25d366',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '16px', fontWeight: '600', flexShrink: 0,
+  },
+  convContent: { flex: 1, minWidth: 0 },
+  convTopRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' },
+  convName: { color: '#fff', fontSize: '14px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  convTime: { color: '#444', fontSize: '11px', flexShrink: 0 },
+  convBottomRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  convPreview: { color: '#555', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
+  convNumberTag: {
+    background: '#1a2a1a', color: '#25d366', fontSize: '10px',
+    padding: '1px 5px', borderRadius: '3px', marginRight: '6px',
+    fontWeight: '600',
+  },
+  unreadBadge: {
+    background: '#25d366', color: '#000',
+    fontSize: '11px', fontWeight: '700',
+    padding: '1px 6px', borderRadius: '20px',
+    flexShrink: 0, marginLeft: '8px',
+  },
+  // Chat area
+  chatArea: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    background: '#0a0a0f',
+  },
+  noChatSelected: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: '12px',
+  },
+  noChatIcon: { fontSize: '48px', opacity: 0.3 },
+  noChatTitle: { color: '#333', margin: 0, fontWeight: '400' },
+  noChatHint: { color: '#2a2a2a', fontSize: '14px' },
+  // Chat header
+  chatHeader: {
+    display: 'flex', alignItems: 'center', gap: '14px',
+    padding: '16px 24px', borderBottom: '1px solid #1a1a24',
+    background: '#0d0d14',
+  },
+  chatAvatar: {
+    width: '42px', height: '42px', borderRadius: '50%',
+    background: '#1e2d1e', color: '#25d366',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '16px', fontWeight: '600',
+  },
+  chatHeaderInfo: { flex: 1 },
+  chatNameRow: { display: 'flex', alignItems: 'center', gap: '8px' },
+  chatName: { color: '#fff', fontSize: '16px', fontWeight: '500' },
+  editNameBtn: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: '14px', padding: '2px', opacity: 0.5,
+  },
+  nameEditRow: { display: 'flex', gap: '8px', alignItems: 'center' },
+  nameInput: {
+    background: '#111118', border: '1px solid #2a2a3a', borderRadius: '6px',
+    padding: '4px 10px', color: '#fff', fontSize: '14px', outline: 'none',
+    fontFamily: "'DM Sans', sans-serif",
+  },
+  saveNameBtn: {
+    background: '#25d366', color: '#000', border: 'none',
+    borderRadius: '6px', padding: '4px 12px', fontSize: '13px',
+    fontWeight: '600', cursor: 'pointer',
+  },
+  cancelNameBtn: {
+    background: 'none', color: '#666', border: '1px solid #2a2a3a',
+    borderRadius: '6px', padding: '4px 10px', fontSize: '13px', cursor: 'pointer',
+  },
+  chatMeta: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' },
+  chatPhone: { color: '#555', fontSize: '12px' },
+  chatMetaDot: { color: '#333' },
+  chatNumberTag: {
+    background: '#1a2a1a', color: '#25d366', fontSize: '11px',
+    padding: '1px 6px', borderRadius: '3px', fontWeight: '600',
+  },
+  // Messages
+  messages: {
+    flex: 1, overflowY: 'auto', padding: '20px 24px',
+    display: 'flex', flexDirection: 'column', gap: '8px',
+  },
+  noMessages: { color: '#333', textAlign: 'center', marginTop: '40px' },
+  msgRow: { display: 'flex' },
+  msgBubble: {
+    maxWidth: '65%', padding: '10px 14px', borderRadius: '12px',
+    wordBreak: 'break-word',
+  },
+  msgBubbleMe: { background: '#1e3a1e', borderBottomRightRadius: '4px' },
+  msgBubbleThem: { background: '#1a1a24', borderBottomLeftRadius: '4px' },
+  msgText: { color: '#e0e0e0', margin: '0 0 4px', fontSize: '14px', lineHeight: '1.5' },
+  msgTime: { color: '#444', fontSize: '11px', float: 'right' },
+  // Input
+  inputArea: {
+    display: 'flex', gap: '10px', padding: '16px 24px',
+    borderTop: '1px solid #1a1a24', background: '#0d0d14',
+  },
+  messageInput: {
+    flex: 1, background: '#111118', border: '1px solid #2a2a3a',
+    borderRadius: '10px', padding: '12px 16px', color: '#fff',
+    fontSize: '14px', outline: 'none', fontFamily: "'DM Sans', sans-serif",
+    resize: 'none',
+  },
+  sendBtn: {
+    background: '#25d366', color: '#000', border: 'none',
+    borderRadius: '10px', padding: '12px 18px',
+    fontSize: '18px', cursor: 'pointer', flexShrink: 0,
+  },
+};
