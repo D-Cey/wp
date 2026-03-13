@@ -44,6 +44,7 @@ async function createClient(numberId, label) {
     puppeteer: {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      protocolTimeout: 60000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -203,25 +204,24 @@ async function sendMessage(numberId, to, body) {
 
   let phone = to.replace(/\D/g, '');
   let chatId = `${phone}@c.us`;
-
   let msg;
+
   try {
-    // Önce @c.us ile dene
     msg = await client.sendMessage(chatId, body);
   } catch (e) {
-    if (e.message && e.message.includes('lid')) {
-      // @c.us çalışmadıysa, mevcut sohbetlerden kişiyi bul
+    if (e.message && (e.message.includes('lid') || e.message.includes('anonymous'))) {
       try {
+        // Mevcut sohbetlerden doğru ID'yi bul
         const chats = await client.getChats();
-        const chat = chats.find(c => c.id.user === phone);
+        const chat = chats.find(c => !c.isGroup && c.id.user === phone);
         if (chat) {
           chatId = chat.id._serialized;
           msg = await client.sendMessage(chatId, body);
         } else {
-          throw new Error('Kişi bulunamadı, önce WhatsApp\'tan yazışma başlatın');
+          throw new Error('Bu numara ile daha önce mesajlaşılmamış. Önce WhatsApp\'tan mesaj başlatın.');
         }
       } catch (e2) {
-        throw new Error('Mesaj gönderilemedi: ' + e2.message);
+        throw new Error(e2.message);
       }
     } else {
       throw new Error('Mesaj gönderilemedi: ' + e.message);
