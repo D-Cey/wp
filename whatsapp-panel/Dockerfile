@@ -42,15 +42,14 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-COPY backend/package*.json ./backend/
+# Tüm dosyaları kopyala
+COPY . .
+
+# Backend dependencies
 RUN cd backend && npm install
 
-COPY frontend/package*.json ./frontend/
-RUN cd frontend && npm install
-COPY frontend/ ./frontend/
-RUN cd frontend && npm run build
-
-COPY backend/ ./backend/
+# Frontend build
+RUN cd frontend && npm install && npm run build
 
 RUN mkdir -p /app/backend/sessions /app/backend/data
 

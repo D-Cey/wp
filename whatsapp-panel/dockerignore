@@ -1,0 +1,5 @@
+**/node_modules
+backend/sessions
+backend/data
+frontend/build
+*.db
