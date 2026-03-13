@@ -44,7 +44,7 @@ async function createClient(numberId, label) {
     puppeteer: {
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      protocolTimeout: 60000,
+      protocolTimeout: 120000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -76,20 +76,20 @@ async function createClient(numberId, label) {
     await db.updateNumberStatus(numberId, 'connected', phone);
     emit('wa:status', { numberId, status: 'connected', phone });
 
-    // Geçmiş mesajları sadece local'de çek (Railway'de timeout olur)
-    if (process.env.NODE_ENV !== 'production') {
+    // Geçmiş mesajları 15 sn sonra arka planda çek
+    setTimeout(async () => {
       try {
         console.log(`[${numberId}] Geçmiş mesajlar çekiliyor...`);
         const chats = await client.getChats();
         let totalImported = 0;
-        for (const chat of chats) {
+        // Sadece son 10 sohbet
+        const recent = chats.filter(c => !c.isGroup).slice(0, 10);
+        for (const chat of recent) {
           try {
-            if (chat.isGroup) continue;
             const contactWaId = `${chat.id.user}@c.us`;
             const phone2 = chat.id.user;
-            let contactName = chat.name || null;
-            await db.upsertContact(contactWaId, phone2, contactName);
-            const messages = await chat.fetchMessages({ limit: 50 });
+            await db.upsertContact(contactWaId, phone2, chat.name || null);
+            const messages = await chat.fetchMessages({ limit: 20 });
             if (!messages || messages.length === 0) continue;
             const sorted = messages.sort((a, b) => a.timestamp - b.timestamp);
             const lastMsg = sorted[sorted.length - 1];
@@ -104,6 +104,8 @@ async function createClient(numberId, label) {
                 totalImported++;
               }
             }
+            // Sohbetler arası 1 sn bekle
+            await new Promise(r => setTimeout(r, 1000));
           } catch (e) {}
         }
         console.log(`[${numberId}] ${totalImported} geçmiş mesaj içe aktarıldı`);
@@ -112,7 +114,7 @@ async function createClient(numberId, label) {
       } catch (e) {
         console.error(`[${numberId}] Geçmiş mesaj hatası:`, e.message);
       }
-    }
+    }, 15000);
   });
 
   client.on('authenticated', () => {
