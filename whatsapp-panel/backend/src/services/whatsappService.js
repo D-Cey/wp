@@ -201,12 +201,18 @@ async function sendMessage(numberId, to, body) {
   if (!client) throw new Error('Client not found or not connected');
   if (!client.info) throw new Error('Client not ready yet');
 
-  // Format number
-  let chatId = to.replace(/\D/g, '');
-  if (!chatId.endsWith('@c.us')) chatId = `${chatId}@c.us`;
+  // Format number - sadece rakamları al ve @c.us ekle
+  let phone = to.replace(/\D/g, '');
+  // Türkiye numarası başında 0 varsa kaldır, ülke kodu yoksa ekleme
+  let chatId = `${phone}@c.us`;
 
-  const msg = await client.sendMessage(chatId, body);
-  const phone = chatId.replace('@c.us', '');
+  let msg;
+  try {
+    msg = await client.sendMessage(chatId, body);
+  } catch (e) {
+    // @c.us çalışmadıysa direkt dene
+    throw new Error('Mesaj gönderilemedi: ' + e.message);
+  }
   const timestamp = new Date(msg.timestamp * 1000).toISOString();
 
   await db.upsertContact(chatId, phone, null);
