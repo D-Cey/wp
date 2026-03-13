@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getNumbers, addNumber, deleteNumber } from '../api';
 
-export default function NumbersModal({ onClose, numberStatuses }) {
+export default function NumbersModal({ onClose, numberStatuses, qrData: externalQrData = {} }) {
   const [numbers, setNumbers] = useState([]);
   const [qrData, setQrData] = useState({});
   const [form, setForm] = useState({ id: '', label: '' });
@@ -48,9 +48,18 @@ export default function NumbersModal({ onClose, numberStatuses }) {
   const handleDelete = async (id) => {
     if (!window.confirm('Bu numarayı kaldırmak istediğinize emin misiniz?')) return;
     try {
-      await deleteNumber(id);
+      const res = await deleteNumber(id);
+      if (res.data?.numbers) {
+        setNumbers(res.data.numbers.map(n => ({
+          ...n,
+          currentStatus: numberStatuses[n.id] || n.status,
+        })));
+      } else {
+        await loadNumbers();
+      }
+    } catch (e) {
       await loadNumbers();
-    } catch (e) {}
+    }
   };
 
   const statusColor = (status) => {
@@ -85,24 +94,33 @@ export default function NumbersModal({ onClose, numberStatuses }) {
             <p style={styles.empty}>Henüz numara eklenmedi</p>
           )}
           {numbers.map(n => (
-            <div key={n.id} style={styles.numberRow}>
-              <div style={styles.numberInfo}>
-                <div style={styles.numberLabel}>{n.label}</div>
-                <div style={styles.numberMeta}>
-                  <code style={styles.numberId}>{n.id}</code>
-                  {n.phone && <span style={styles.numberPhone}> · {n.phone}</span>}
+            <div key={n.id} style={styles.numberItem}>
+              <div style={styles.numberRow}>
+                <div style={styles.numberInfo}>
+                  <div style={styles.numberLabel}>{n.label}</div>
+                  <div style={styles.numberMeta}>
+                    <code style={styles.numberId}>{n.id}</code>
+                    {n.phone && <span style={styles.numberPhone}> · {n.phone}</span>}
+                  </div>
+                </div>
+                <div style={styles.numberRight}>
+                  <span style={{ ...styles.statusBadge, background: statusColor(n.currentStatus || n.status) }}>
+                    {statusLabel(n.currentStatus || n.status)}
+                  </span>
+                  <button
+                    style={styles.deleteBtn}
+                    onClick={() => handleDelete(n.id)}
+                    title="Kaldır"
+                  >✕</button>
                 </div>
               </div>
-              <div style={styles.numberRight}>
-                <span style={{ ...styles.statusBadge, background: statusColor(n.currentStatus || n.status) }}>
-                  {statusLabel(n.currentStatus || n.status)}
-                </span>
-                <button
-                  style={styles.deleteBtn}
-                  onClick={() => handleDelete(n.id)}
-                  title="Kaldır"
-                >✕</button>
-              </div>
+              {/* QR Code inline */}
+              {(n.currentStatus === 'qr_pending' || numberStatuses[n.id] === 'qr_pending') && externalQrData[n.id] && (
+                <div style={styles.qrInline}>
+                  <p style={styles.qrLabel}>📲 QR kodu tarat → WhatsApp → Bağlı Cihazlar → Cihaz Ekle</p>
+                  <img src={externalQrData[n.id]} alt="QR" style={styles.qrImage} />
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -169,10 +187,17 @@ const styles = {
   },
   list: { padding: '16px 24px' },
   empty: { color: '#555', textAlign: 'center', padding: '16px 0' },
+  numberItem: { borderBottom: '1px solid #1a1a24' },
   numberRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '12px 0', borderBottom: '1px solid #1a1a24',
+    padding: '12px 0',
   },
+  qrInline: {
+    textAlign: 'center', padding: '16px',
+    background: '#0d0d14', borderRadius: '12px', marginBottom: '12px',
+  },
+  qrLabel: { color: '#aaa', fontSize: '12px', marginBottom: '12px' },
+  qrImage: { width: '200px', height: '200px', borderRadius: '8px', border: '4px solid #fff' },
   numberInfo: {},
   numberLabel: { color: '#fff', fontWeight: '500', marginBottom: '4px' },
   numberMeta: { display: 'flex', alignItems: 'center', gap: '4px' },

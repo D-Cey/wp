@@ -24,19 +24,19 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const unread = conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+    const unread = Array.isArray(conversations) ? conversations.reduce((sum, c) => sum + (c.unread_count || 0), 0) : 0;
     setTotalUnread(unread);
   }, [conversations]);
 
   const loadInitialData = async () => {
     try {
       const [convRes, numRes] = await Promise.all([getConversations(), getNumbers()]);
-      setConversations(convRes.data);
-      setNumbers(numRes.data);
+      setConversations(Array.isArray(convRes.data) ? convRes.data : []);
+      setNumbers(Array.isArray(numRes.data) ? numRes.data : []);
       const statuses = {};
-      numRes.data.forEach(n => { statuses[n.id] = n.currentStatus || n.status; });
+      (Array.isArray(numRes.data) ? numRes.data : []).forEach(n => { statuses[n.id] = n.currentStatus || n.status; });
       setNumberStatuses(statuses);
-    } catch (e) {}
+    } catch (e) { console.error(e); }
   };
 
   const showNotif = (msg, type = 'success') => {
@@ -65,7 +65,7 @@ function Dashboard() {
       }
     },
     onConversationsUpdated: (convs) => {
-      setConversations(convs);
+      setConversations(Array.isArray(convs) ? convs : []);
     },
   });
 
@@ -141,6 +141,7 @@ function Dashboard() {
           <InboxPanel
             conversations={conversations}
             onConversationsUpdate={setConversations}
+            numbers={numbers}
           />
         )}
         {activeTab === 'new' && (
@@ -156,6 +157,7 @@ function Dashboard() {
         <NumbersModal
           onClose={() => { setShowNumbers(false); loadInitialData(); }}
           numberStatuses={numberStatuses}
+          qrData={qrData}
         />
       )}
       {pendingQRs.length > 0 && (
@@ -176,9 +178,10 @@ export default function App() {
 
 const styles = {
   app: {
-    minHeight: '100vh', background: '#0a0a0f',
+    height: '100vh', background: '#0a0a0f',
     display: 'flex', flexDirection: 'column',
     fontFamily: "'DM Sans', sans-serif",
+    overflow: 'hidden',
   },
   notification: {
     position: 'fixed', top: '16px', right: '16px',

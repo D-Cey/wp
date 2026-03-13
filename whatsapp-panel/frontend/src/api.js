@@ -29,6 +29,7 @@ export const deleteNumber = (id) => API.delete(`/wa/numbers/${id}`);
 export const getConversations = () => API.get('/wa/conversations');
 export const getMessages = (convId) => API.get(`/wa/conversations/${convId}/messages`);
 export const markRead = (convId) => API.post(`/wa/conversations/${convId}/read`);
+export const deleteConversation = (id) => API.delete(`/wa/conversations/${id}`);
 
 export const sendMessage = (numberId, to, body) =>
   API.post('/wa/send', { numberId, to, body });

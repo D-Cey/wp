@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getConversations, getMessages, sendMessage, markRead, updateContactName } from '../api';
+import { getMessages, sendMessage, markRead, updateContactName, deleteConversation } from '../api';
 
 function timeAgo(dt) {
   if (!dt) return '';
@@ -17,7 +17,8 @@ function fullTime(dt) {
   return new Date(dt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function InboxPanel({ conversations, onConversationsUpdate }) {
+export default function InboxPanel({ conversations: convsProp, onConversationsUpdate, numbers = [] }) {
+  const conversations = Array.isArray(convsProp) ? convsProp : [];
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
@@ -25,6 +26,7 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all');
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -49,9 +51,9 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
   const loadMessages = async (convId) => {
     try {
       const res = await getMessages(convId);
-      setMessages(res.data);
+      setMessages(Array.isArray(res.data) ? res.data : []);
       await markRead(convId);
-    } catch (e) {}
+    } catch (e) { console.error(e); }
   };
 
   const selectConversation = async (conv) => {
@@ -75,6 +77,17 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
     }
   };
 
+  const handleDeleteConversation = async (e, convId) => {
+    e.stopPropagation();
+    if (!window.confirm('Bu konuşmayı silmek istediğinize emin misiniz?')) return;
+    try {
+      const res = await deleteConversation(convId);
+      if (selected?.id === convId) setSelected(null);
+      setMessages([]);
+      onConversationsUpdate(Array.isArray(res.data.conversations) ? res.data.conversations : []);
+    } catch (e) { console.error(e); }
+  };
+
   const handleSaveName = async () => {
     if (!nameInput.trim() || !selected) return;
     try {
@@ -86,7 +99,16 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
 
   const filtered = conversations.filter(c => {
     const name = c.contact_name || c.contact_phone || '';
-    return name.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = name.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = activeFilter === 'all' || c.number_id === activeFilter;
+    return matchSearch && matchFilter;
+  });
+
+  // Unread count per number
+  const unreadPerNumber = {};
+  conversations.forEach(c => {
+    if (!unreadPerNumber[c.number_id]) unreadPerNumber[c.number_id] = 0;
+    unreadPerNumber[c.number_id] += c.unread_count || 0;
   });
 
   const displayName = (conv) => conv.contact_name || conv.contact_phone || conv.contact_wa_id;
@@ -97,7 +119,34 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
           <h2 style={styles.sidebarTitle}>Konuşmalar</h2>
-          <span style={styles.convCount}>{conversations.length}</span>
+          <span style={styles.convCount}>{filtered.length}</span>
+        </div>
+
+        {/* Numara Filtreleri */}
+        <div style={styles.filterTabs}>
+          <button
+            style={{ ...styles.filterTab, ...(activeFilter === 'all' ? styles.filterTabActive : {}) }}
+            onClick={() => setActiveFilter('all')}
+          >
+            Tümü
+            {conversations.reduce((s, c) => s + (c.unread_count || 0), 0) > 0 && (
+              <span style={styles.filterBadge}>
+                {conversations.reduce((s, c) => s + (c.unread_count || 0), 0)}
+              </span>
+            )}
+          </button>
+          {numbers.filter(n => n.status === 'connected' || n.currentStatus === 'connected').map(n => (
+            <button
+              key={n.id}
+              style={{ ...styles.filterTab, ...(activeFilter === n.id ? styles.filterTabActive : {}) }}
+              onClick={() => setActiveFilter(n.id)}
+            >
+              {n.label}
+              {unreadPerNumber[n.id] > 0 && (
+                <span style={styles.filterBadge}>{unreadPerNumber[n.id]}</span>
+              )}
+            </button>
+          ))}
         </div>
         <div style={styles.searchWrap}>
           <input
@@ -129,7 +178,14 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
               <div style={styles.convContent}>
                 <div style={styles.convTopRow}>
                   <span style={styles.convName}>{displayName(conv)}</span>
-                  <span style={styles.convTime}>{timeAgo(conv.last_message_at)}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={styles.convTime}>{timeAgo(conv.last_message_at)}</span>
+                    <button
+                      style={styles.convDeleteBtn}
+                      onClick={(e) => handleDeleteConversation(e, conv.id)}
+                      title="Konuşmayı sil"
+                    >✕</button>
+                  </div>
                 </div>
                 <div style={styles.convBottomRow}>
                   <span style={styles.convPreview}>
@@ -198,7 +254,12 @@ export default function InboxPanel({ conversations, onConversationsUpdate }) {
               {messages.length === 0 && (
                 <div style={styles.noMessages}>Mesaj bulunamadı</div>
               )}
-              {messages.map((msg, i) => {
+              {messages.filter(msg => {
+                if (!msg.body) return false;
+                // base64 veya binary içerik filtrele
+                if (msg.body.length > 500 && !msg.body.includes(' ')) return false;
+                return true;
+              }).map((msg, i) => {
                 const isMe = msg.from_me === 1;
                 return (
                   <div key={msg.id} style={{ ...styles.msgRow, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
@@ -257,7 +318,25 @@ const styles = {
     background: '#1e1e2e', color: '#666',
     fontSize: '12px', padding: '2px 8px', borderRadius: '20px',
   },
-  searchWrap: { padding: '12px 16px', borderBottom: '1px solid #1a1a24' },
+  filterTabs: {
+    display: 'flex', gap: '4px', padding: '8px 12px',
+    borderBottom: '1px solid #1a1a24', flexWrap: 'wrap',
+  },
+  filterTab: {
+    background: 'none', border: '1px solid #2a2a3a', color: '#666',
+    borderRadius: '20px', padding: '4px 10px', fontSize: '12px',
+    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+    display: 'flex', alignItems: 'center', gap: '4px',
+    transition: 'all 0.15s',
+  },
+  filterTabActive: {
+    background: '#1a2a1a', borderColor: '#25d366', color: '#25d366',
+  },
+  filterBadge: {
+    background: '#25d366', color: '#000',
+    fontSize: '10px', fontWeight: '700',
+    padding: '1px 5px', borderRadius: '20px',
+  },
   searchInput: {
     width: '100%', background: '#111118', border: '1px solid #2a2a3a',
     borderRadius: '8px', padding: '8px 12px', color: '#fff', fontSize: '14px',
@@ -283,6 +362,12 @@ const styles = {
   convTopRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' },
   convName: { color: '#fff', fontSize: '14px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   convTime: { color: '#444', fontSize: '11px', flexShrink: 0 },
+  convDeleteBtn: {
+    background: 'none', border: 'none', color: '#444',
+    fontSize: '11px', cursor: 'pointer', padding: '1px 4px',
+    borderRadius: '4px', flexShrink: 0,
+    transition: 'color 0.15s',
+  },
   convBottomRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   convPreview: { color: '#555', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
   convNumberTag: {
@@ -299,7 +384,7 @@ const styles = {
   // Chat area
   chatArea: {
     flex: 1, display: 'flex', flexDirection: 'column',
-    background: '#0a0a0f',
+    background: '#0a0a0f', overflow: 'hidden', minHeight: 0,
   },
   noChatSelected: {
     flex: 1, display: 'flex', flexDirection: 'column',
@@ -357,8 +442,8 @@ const styles = {
   noMessages: { color: '#333', textAlign: 'center', marginTop: '40px' },
   msgRow: { display: 'flex' },
   msgBubble: {
-    maxWidth: '65%', padding: '10px 14px', borderRadius: '12px',
-    wordBreak: 'break-word',
+    maxWidth: '60%', minWidth: '80px', padding: '10px 14px', borderRadius: '12px',
+    wordBreak: 'break-word', display: 'inline-block',
   },
   msgBubbleMe: { background: '#1e3a1e', borderBottomRightRadius: '4px' },
   msgBubbleThem: { background: '#1a1a24', borderBottomLeftRadius: '4px' },

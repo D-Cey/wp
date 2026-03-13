@@ -5,8 +5,8 @@ const waService = require('../services/whatsappService');
 const db = require('../db/database');
 
 // GET /api/wa/numbers - tüm numaralar
-router.get('/numbers', auth, (req, res) => {
-  const numbers = db.getNumbers();
+router.get('/numbers', auth, async (req, res) => {
+  const numbers = await db.getNumbers();
   const numbersWithStatus = numbers.map(n => ({
     ...n,
     currentStatus: waService.getClientStatus(n.id),
@@ -27,29 +27,40 @@ router.post('/numbers', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/wa/numbers/:id - numara bağlantısını kes
+// DELETE /api/wa/numbers/:id - numara sil
 router.delete('/numbers/:id', auth, async (req, res) => {
   try {
     await waService.disconnectClient(req.params.id);
-    res.json({ success: true });
+    await db.deleteNumber(req.params.id);
+    const numbers = await db.getNumbers();
+    res.json({ success: true, numbers });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 // GET /api/wa/conversations - tüm konuşmalar
-router.get('/conversations', auth, (req, res) => {
-  const conversations = db.getConversations();
+router.get('/conversations', auth, async (req, res) => {
+  const conversations = await db.getConversations();
   res.json(conversations);
 });
 
 // GET /api/wa/conversations/:id/messages - belirli konuşmanın mesajları
-router.get('/conversations/:id/messages', auth, (req, res) => {
-  const messages = db.getMessages(req.params.id);
+router.get('/conversations/:id/messages', auth, async (req, res) => {
+  const messages = await db.getMessages(req.params.id);
   res.json(messages);
 });
 
-// POST /api/wa/conversations/:id/read - okundu işaretle
+// DELETE /api/wa/conversations/:id - konuşmayı sil
+router.delete('/conversations/:id', auth, async (req, res) => {
+  try {
+    await db.deleteConversation(req.params.id);
+    const conversations = await db.getConversations();
+    res.json({ success: true, conversations });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 router.post('/conversations/:id/read', auth, (req, res) => {
   db.markConversationRead(req.params.id);
   res.json({ success: true });
@@ -64,7 +75,7 @@ router.post('/send', auth, async (req, res) => {
 
   try {
     const result = await waService.sendMessage(numberId, to, body);
-    const conversations = db.getConversations();
+    const conversations = await db.getConversations();
     res.json({ success: true, ...result, conversations });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -72,13 +83,13 @@ router.post('/send', auth, async (req, res) => {
 });
 
 // PATCH /api/wa/contacts/:waId/name - iletişim ismi güncelle
-router.patch('/contacts/:waId/name', auth, (req, res) => {
+router.patch('/contacts/:waId/name', auth, async (req, res) => {
   const { name } = req.body;
   const waId = decodeURIComponent(req.params.waId);
   if (!name) return res.status(400).json({ error: 'name gerekli' });
 
-  db.updateContactName(waId, name);
-  const conversations = db.getConversations();
+  await db.updateContactName(waId, name);
+  const conversations = await db.getConversations();
   res.json({ success: true, conversations });
 });
 

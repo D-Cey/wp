@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const authRoutes = require('./routes/auth');
 const waRoutes = require('./routes/whatsapp');
 const waService = require('./services/whatsappService');
+const db = require('./db/database');
 
 const app = express();
 const server = http.createServer(app);
@@ -57,8 +58,14 @@ io.on('connection', (socket) => {
 waService.setIO(io);
 
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, async () => {
-  console.log(`\n🚀 Backend çalışıyor: http://localhost:${PORT}`);
-  console.log('📱 Kayıtlı numaralar yeniden bağlanıyor...\n');
-  await waService.initializeSavedNumbers();
+
+db.initDB().then(async () => {
+  server.listen(PORT, async () => {
+    console.log(`\n🚀 Backend çalışıyor: http://localhost:${PORT}`);
+    console.log('📱 Kayıtlı numaralar yeniden bağlanıyor...\n');
+    await waService.initializeSavedNumbers();
+  });
+}).catch(err => {
+  console.error('Veritabanı başlatılamadı:', err);
+  process.exit(1);
 });

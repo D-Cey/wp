@@ -59,11 +59,72 @@ async function createClient(numberId, label) {
     emit('wa:status', { numberId, status: 'qr_pending' });
   });
 
-  client.on('ready', () => {
+  client.on('ready', async () => {
     const phone = client.info?.wid?.user || '';
     console.log(`[${numberId}] Ready! Phone: ${phone}`);
-    db.updateNumberStatus(numberId, 'connected', phone);
+    await db.updateNumberStatus(numberId, 'connected', phone);
     emit('wa:status', { numberId, status: 'connected', phone });
+
+    // Geçmiş mesajları çek
+    try {
+      console.log(`[${numberId}] Geçmiş mesajlar çekiliyor...`);
+      const chats = await client.getChats();
+      let totalImported = 0;
+
+      for (const chat of chats) {
+        try {
+          // Grup sohbetlerini atla
+          if (chat.isGroup) continue;
+
+          const contactWaId = `${chat.id.user}@c.us`;
+          const phone2 = chat.id.user;
+
+          // Kişi adını al
+          let contactName = chat.name || null;
+
+          await db.upsertContact(contactWaId, phone2, contactName);
+
+          // Son 50 mesajı çek
+          const messages = await chat.fetchMessages({ limit: 50 });
+          if (!messages || messages.length === 0) continue;
+
+          // En eski mesajdan en yeniye sırala
+          const sorted = messages.sort((a, b) => a.timestamp - b.timestamp);
+          const lastMsg = sorted[sorted.length - 1];
+          const lastTimestamp = new Date(lastMsg.timestamp * 1000).toISOString();
+
+          // Konuşmayı oluştur
+          await db.upsertConversation(numberId, contactWaId, lastMsg.body || '', lastTimestamp);
+
+          // Her mesajı kaydet
+          for (const msg of sorted) {
+            if (!msg.body) continue;
+            const ts = new Date(msg.timestamp * 1000).toISOString();
+            const conv = await db.getConversation(numberId, contactWaId);
+            if (conv) {
+              await db.insertMessage(
+                msg.id._serialized,
+                conv.id,
+                numberId,
+                contactWaId,
+                msg.body,
+                msg.fromMe,
+                ts
+              );
+              totalImported++;
+            }
+          }
+        } catch (e) {
+          // Tek sohbet hata verirse devam et
+        }
+      }
+
+      console.log(`[${numberId}] ${totalImported} geçmiş mesaj içe aktarıldı`);
+      const conversations = await db.getConversations();
+      emit('wa:conversations_updated', conversations);
+    } catch (e) {
+      console.error(`[${numberId}] Geçmiş mesaj hatası:`, e.message);
+    }
   });
 
   client.on('authenticated', () => {
@@ -90,38 +151,37 @@ async function createClient(numberId, label) {
     try {
       if (msg.from === 'status@broadcast') return;
       
-      const contactWaId = msg.from; // e.g. "905321234567@c.us"
-      const phone = contactWaId.replace('@c.us', '');
+      // Normalize @lid to @c.us
+      let contactWaId = msg.from;
+      let phone = '';
+      try {
+        const contact = await msg.getContact();
+        const num = contact.number || contact.id?.user || contactWaId.replace(/@.*/, '');
+        phone = num;
+        contactWaId = `${num}@c.us`;
+      } catch (e) {
+        phone = contactWaId.replace(/@.*/, '');
+        contactWaId = `${phone}@c.us`;
+      }
+
       const body = msg.body || '';
       const timestamp = new Date(msg.timestamp * 1000).toISOString();
 
-      // Get or create contact
       let contactName = null;
       try {
         const contact = await msg.getContact();
         contactName = contact.pushname || contact.name || null;
       } catch (e) {}
 
-      db.upsertContact(contactWaId, phone, contactName);
-
-      // Upsert conversation
-      const convId = db.upsertConversation(numberId, contactWaId, body, timestamp);
-
-      // Insert message
-      const msgId = db.insertMessage(
-        msg.id._serialized,
-        convId,
-        numberId,
-        contactWaId,
-        body,
-        false,
-        timestamp
+      await db.upsertContact(contactWaId, phone, contactName);
+      const convId = await db.upsertConversation(numberId, contactWaId, body, timestamp);
+      const msgId = await db.insertMessage(
+        msg.id._serialized, convId, numberId, contactWaId, body, false, timestamp
       );
 
-      // Get full conversation data for UI
-      const conversations = db.getConversations();
-      const contact = db.getContact(contactWaId);
-      const number = db.getNumber(numberId);
+      const conversations = await db.getConversations();
+      const contact = await db.getContact(contactWaId);
+      const number = await db.getNumber(numberId);
 
       emit('wa:message', {
         numberId,
@@ -142,49 +202,8 @@ async function createClient(numberId, label) {
     }
   });
 
-  client.on('message_create', async (msg) => {
-    // Outgoing messages sent from this client
-    if (!msg.fromMe) return;
-    try {
-      const contactWaId = msg.to;
-      const phone = contactWaId.replace('@c.us', '');
-      const body = msg.body || '';
-      const timestamp = new Date(msg.timestamp * 1000).toISOString();
-
-      db.upsertContact(contactWaId, phone, null);
-      db.upsertConversation(numberId, contactWaId, body, timestamp);
-      db.updateConversationAfterSend(numberId, contactWaId, body, timestamp);
-
-      const conv = db.getConversation(numberId, contactWaId);
-      if (conv) {
-        const msgId = db.insertMessage(
-          msg.id._serialized,
-          conv.id,
-          numberId,
-          contactWaId,
-          body,
-          true,
-          timestamp
-        );
-
-        emit('wa:message', {
-          numberId,
-          conversationId: conv.id,
-          messageId: msgId,
-          contactWaId,
-          phone,
-          body,
-          fromMe: true,
-          timestamp,
-        });
-
-        const conversations = db.getConversations();
-        emit('wa:conversations_updated', conversations);
-      }
-    } catch (err) {
-      console.error(`[${numberId}] message_create error:`, err);
-    }
-  });
+  // message_create is handled by sendMessage route directly
+  // No need to handle it here to avoid duplicates
 
   client.initialize();
   return { status: 'initializing' };
@@ -203,13 +222,12 @@ async function sendMessage(numberId, to, body) {
   const phone = chatId.replace('@c.us', '');
   const timestamp = new Date(msg.timestamp * 1000).toISOString();
 
-  // Ensure conversation exists
-  db.upsertContact(chatId, phone, null);
-  const convId = db.upsertConversation(numberId, chatId, body, timestamp);
-  db.updateConversationAfterSend(numberId, chatId, body, timestamp);
+  await db.upsertContact(chatId, phone, null);
+  const convId = await db.upsertConversation(numberId, chatId, body, timestamp);
+  await db.updateConversationAfterSend(numberId, chatId, body, timestamp);
 
-  const conv = db.getConversation(numberId, chatId);
-  const msgId = db.insertMessage(
+  const conv = await db.getConversation(numberId, chatId);
+  const msgId = await db.insertMessage(
     msg.id._serialized,
     conv?.id || convId,
     numberId,
@@ -244,7 +262,7 @@ function getClientStatus(numberId) {
 
 // Auto-reconnect saved numbers on startup
 async function initializeSavedNumbers() {
-  const numbers = db.getNumbers();
+  const numbers = await db.getNumbers();
   for (const num of numbers) {
     if (num.status === 'connected' || num.status === 'authenticated') {
       console.log(`[startup] Re-initializing ${num.id} (${num.label})`);
