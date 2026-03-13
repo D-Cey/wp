@@ -71,69 +71,46 @@ async function createClient(numberId, label) {
   client.on('ready', async () => {
     const phone = client.info?.wid?.user || '';
     console.log(`[${numberId}] Ready! Phone: ${phone}`);
-    lastQRs.delete(numberId); // QR'ı temizle
+    lastQRs.delete(numberId);
     await db.updateNumberStatus(numberId, 'connected', phone);
     emit('wa:status', { numberId, status: 'connected', phone });
 
-    // Geçmiş mesajları çek
-    try {
-      console.log(`[${numberId}] Geçmiş mesajlar çekiliyor...`);
-      const chats = await client.getChats();
-      let totalImported = 0;
-
-      for (const chat of chats) {
-        try {
-          // Grup sohbetlerini atla
-          if (chat.isGroup) continue;
-
-          const contactWaId = `${chat.id.user}@c.us`;
-          const phone2 = chat.id.user;
-
-          // Kişi adını al
-          let contactName = chat.name || null;
-
-          await db.upsertContact(contactWaId, phone2, contactName);
-
-          // Son 50 mesajı çek
-          const messages = await chat.fetchMessages({ limit: 50 });
-          if (!messages || messages.length === 0) continue;
-
-          // En eski mesajdan en yeniye sırala
-          const sorted = messages.sort((a, b) => a.timestamp - b.timestamp);
-          const lastMsg = sorted[sorted.length - 1];
-          const lastTimestamp = new Date(lastMsg.timestamp * 1000).toISOString();
-
-          // Konuşmayı oluştur
-          await db.upsertConversation(numberId, contactWaId, lastMsg.body || '', lastTimestamp);
-
-          // Her mesajı kaydet
-          for (const msg of sorted) {
-            if (!msg.body) continue;
-            const ts = new Date(msg.timestamp * 1000).toISOString();
-            const conv = await db.getConversation(numberId, contactWaId);
-            if (conv) {
-              await db.insertMessage(
-                msg.id._serialized,
-                conv.id,
-                numberId,
-                contactWaId,
-                msg.body,
-                msg.fromMe,
-                ts
-              );
-              totalImported++;
+    // Geçmiş mesajları sadece local'de çek (Railway'de timeout olur)
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        console.log(`[${numberId}] Geçmiş mesajlar çekiliyor...`);
+        const chats = await client.getChats();
+        let totalImported = 0;
+        for (const chat of chats) {
+          try {
+            if (chat.isGroup) continue;
+            const contactWaId = `${chat.id.user}@c.us`;
+            const phone2 = chat.id.user;
+            let contactName = chat.name || null;
+            await db.upsertContact(contactWaId, phone2, contactName);
+            const messages = await chat.fetchMessages({ limit: 50 });
+            if (!messages || messages.length === 0) continue;
+            const sorted = messages.sort((a, b) => a.timestamp - b.timestamp);
+            const lastMsg = sorted[sorted.length - 1];
+            const lastTimestamp = new Date(lastMsg.timestamp * 1000).toISOString();
+            await db.upsertConversation(numberId, contactWaId, lastMsg.body || '', lastTimestamp);
+            for (const msg of sorted) {
+              if (!msg.body) continue;
+              const ts = new Date(msg.timestamp * 1000).toISOString();
+              const conv = await db.getConversation(numberId, contactWaId);
+              if (conv) {
+                await db.insertMessage(msg.id._serialized, conv.id, numberId, contactWaId, msg.body, msg.fromMe, ts);
+                totalImported++;
+              }
             }
-          }
-        } catch (e) {
-          // Tek sohbet hata verirse devam et
+          } catch (e) {}
         }
+        console.log(`[${numberId}] ${totalImported} geçmiş mesaj içe aktarıldı`);
+        const conversations = await db.getConversations();
+        emit('wa:conversations_updated', conversations);
+      } catch (e) {
+        console.error(`[${numberId}] Geçmiş mesaj hatası:`, e.message);
       }
-
-      console.log(`[${numberId}] ${totalImported} geçmiş mesaj içe aktarıldı`);
-      const conversations = await db.getConversations();
-      emit('wa:conversations_updated', conversations);
-    } catch (e) {
-      console.error(`[${numberId}] Geçmiş mesaj hatası:`, e.message);
     }
   });
 
@@ -272,14 +249,6 @@ function getClientStatus(numberId) {
 
 // Auto-reconnect saved numbers on startup
 async function initializeSavedNumbers() {
-  // Production'da (Railway) her başlangıçta DB'yi temizle
-  // çünkü session dosyaları kalıcı değil
-  if (process.env.NODE_ENV === 'production') {
-    console.log('[startup] Production mode - clearing old number sessions...');
-    await db.clearNumberStatuses();
-    return;
-  }
-
   const numbers = await db.getNumbers();
   for (const num of numbers) {
     if (num.status === 'connected' || num.status === 'authenticated') {

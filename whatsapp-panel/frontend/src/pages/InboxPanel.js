@@ -119,7 +119,19 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
           <h2 style={styles.sidebarTitle}>Konuşmalar</h2>
-          <span style={styles.convCount}>{filtered.length}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              style={styles.markAllBtn}
+              onClick={async () => {
+                try {
+                  await Promise.all(conversations.map(c => markRead(c.id)));
+                  onConversationsUpdate(conversations.map(c => ({ ...c, unread_count: 0 })));
+                } catch (e) {}
+              }}
+              title="Hepsini okundu işaretle"
+            >✓✓</button>
+            <span style={styles.convCount}>{filtered.length}</span>
+          </div>
         </div>
 
         {/* Numara Filtreleri */}
@@ -313,7 +325,11 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: '8px',
     borderBottom: '1px solid #1a1a24',
   },
-  sidebarTitle: { color: '#fff', margin: 0, fontSize: '17px', fontWeight: '600', flex: 1 },
+  markAllBtn: {
+    background: 'none', border: '1px solid #2a2a3a', color: '#25d366',
+    borderRadius: '6px', padding: '2px 8px', fontSize: '12px',
+    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+  },
   convCount: {
     background: '#1e1e2e', color: '#666',
     fontSize: '12px', padding: '2px 8px', borderRadius: '20px',
