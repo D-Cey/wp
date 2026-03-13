@@ -44,6 +44,8 @@ function Dashboard() {
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const [blockSocketUpdate, setBlockSocketUpdate] = useState(false);
+
   useSocket(token, {
     onQR: ({ numberId, qr }) => {
       setQrData(prev => ({ ...prev, [numberId]: qr }));
@@ -65,9 +67,16 @@ function Dashboard() {
       }
     },
     onConversationsUpdated: (convs) => {
+      if (blockSocketUpdate) return;
       setConversations(Array.isArray(convs) ? convs : []);
     },
   });
+
+  const handleConversationsUpdate = (convs) => {
+    setBlockSocketUpdate(true);
+    setConversations(Array.isArray(convs) ? convs : []);
+    setTimeout(() => setBlockSocketUpdate(false), 3000);
+  };
 
   const handleMessageSent = (updatedConvs, convId) => {
     setConversations(updatedConvs);
@@ -140,7 +149,7 @@ function Dashboard() {
         {activeTab === 'inbox' && (
           <InboxPanel
             conversations={conversations}
-            onConversationsUpdate={setConversations}
+            onConversationsUpdate={handleConversationsUpdate}
             numbers={numbers}
           />
         )}
