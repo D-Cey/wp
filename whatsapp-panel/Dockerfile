@@ -42,17 +42,21 @@ ENV NODE_ENV=production
 
 WORKDIR /app
 
-# Tüm dosyaları kopyala
 COPY . .
 
-# Backend dependencies
-RUN cd backend && npm install
+# Klasör yapısını kontrol et ve doğru yerde çalış
+RUN ls -la && \
+    if [ -d "whatsapp-panel" ]; then \
+      cd whatsapp-panel && \
+      cd backend && npm install && cd .. && \
+      cd frontend && npm install && npm run build && cd ..; \
+    else \
+      cd backend && npm install && cd .. && \
+      cd frontend && npm install && npm run build; \
+    fi
 
-# Frontend build
-RUN cd frontend && npm install && npm run build
-
-RUN mkdir -p /app/backend/sessions /app/backend/data
+RUN mkdir -p sessions data
 
 EXPOSE 3001
 
-CMD ["node", "backend/src/index.js"]
+CMD ["sh", "-c", "if [ -d 'whatsapp-panel' ]; then node whatsapp-panel/backend/src/index.js; else node backend/src/index.js; fi"]
