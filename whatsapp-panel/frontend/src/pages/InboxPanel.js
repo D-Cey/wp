@@ -129,7 +129,20 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
                 } catch (e) {}
               }}
               title="Hepsini okundu işaretle"
-            >✓✓</button>
+            >✓✓ Okundu</button>
+            <button
+              style={{ ...styles.markAllBtn, color: '#e74c3c', borderColor: '#3a1a1a' }}
+              onClick={async () => {
+                if (!window.confirm('Tüm konuşmaları silmek istediğinize emin misiniz?')) return;
+                try {
+                  await Promise.all(conversations.map(c => deleteConversation(c.id)));
+                  onConversationsUpdate([]);
+                  setSelected(null);
+                  setMessages([]);
+                } catch (e) {}
+              }}
+              title="Tüm konuşmaları sil"
+            >🗑 Tümünü Sil</button>
             <span style={styles.convCount}>{filtered.length}</span>
           </div>
         </div>
