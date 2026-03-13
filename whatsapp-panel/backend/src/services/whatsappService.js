@@ -272,12 +272,19 @@ function getClientStatus(numberId) {
 
 // Auto-reconnect saved numbers on startup
 async function initializeSavedNumbers() {
+  // Production'da (Railway) her başlangıçta DB'yi temizle
+  // çünkü session dosyaları kalıcı değil
+  if (process.env.NODE_ENV === 'production') {
+    console.log('[startup] Production mode - clearing old number sessions...');
+    await db.clearNumberStatuses();
+    return;
+  }
+
   const numbers = await db.getNumbers();
   for (const num of numbers) {
     if (num.status === 'connected' || num.status === 'authenticated') {
       console.log(`[startup] Re-initializing ${num.id} (${num.label})`);
       await createClient(num.id, num.label);
-      // Small delay between clients
       await new Promise(r => setTimeout(r, 2000));
     }
   }

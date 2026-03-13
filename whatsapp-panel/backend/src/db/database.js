@@ -81,7 +81,9 @@ module.exports = {
     'INSERT INTO numbers (id, label) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET label = ?',
     [id, label, label]
   ),
-  deleteNumber: async (id) => {
+  clearNumberStatuses: async () => {
+    await run("UPDATE numbers SET status = 'disconnected'");
+  },
     await run('DELETE FROM numbers WHERE id = ?', [id]);
   },
   updateNumberStatus: (id, status, phone) => run(
