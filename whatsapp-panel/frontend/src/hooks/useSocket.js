@@ -10,9 +10,13 @@ export function useSocket(token, handlers) {
   useEffect(() => {
     if (!token) return;
 
-    socket = io('http://localhost:3001', {
+    const SOCKET_URL = window.location.hostname === 'localhost'
+      ? 'http://localhost:3001'
+      : window.location.origin;
+
+    socket = io(SOCKET_URL, {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'],
     });
 
     socket.on('connect', () => console.log('Socket connected'));
