@@ -201,17 +201,31 @@ async function sendMessage(numberId, to, body) {
   if (!client) throw new Error('Client not found or not connected');
   if (!client.info) throw new Error('Client not ready yet');
 
-  // Format number - sadece rakamları al ve @c.us ekle
   let phone = to.replace(/\D/g, '');
-  // Türkiye numarası başında 0 varsa kaldır, ülke kodu yoksa ekleme
   let chatId = `${phone}@c.us`;
 
   let msg;
   try {
+    // Önce @c.us ile dene
     msg = await client.sendMessage(chatId, body);
   } catch (e) {
-    // @c.us çalışmadıysa direkt dene
-    throw new Error('Mesaj gönderilemedi: ' + e.message);
+    if (e.message && e.message.includes('lid')) {
+      // @c.us çalışmadıysa, mevcut sohbetlerden kişiyi bul
+      try {
+        const chats = await client.getChats();
+        const chat = chats.find(c => c.id.user === phone);
+        if (chat) {
+          chatId = chat.id._serialized;
+          msg = await client.sendMessage(chatId, body);
+        } else {
+          throw new Error('Kişi bulunamadı, önce WhatsApp\'tan yazışma başlatın');
+        }
+      } catch (e2) {
+        throw new Error('Mesaj gönderilemedi: ' + e2.message);
+      }
+    } else {
+      throw new Error('Mesaj gönderilemedi: ' + e.message);
+    }
   }
   const timestamp = new Date(msg.timestamp * 1000).toISOString();
 
