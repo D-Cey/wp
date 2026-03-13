@@ -65,7 +65,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Pass io to whatsapp service
+// Pass io to whatsapp service (after io.on handlers)
 waService.setIO(io);
 
 const PORT = process.env.PORT || 3001;

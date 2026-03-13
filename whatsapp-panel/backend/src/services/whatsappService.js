@@ -9,10 +9,17 @@ if (!fs.existsSync(SESSION_PATH)) fs.mkdirSync(SESSION_PATH, { recursive: true }
 
 // Active WA clients map: { numberId: Client }
 const clients = new Map();
+const lastQRs = new Map(); // Son QR'ları sakla
 let io = null;
 
 function setIO(socketIO) {
   io = socketIO;
+  // Yeni socket bağlandığında bekleyen QR'ları gönder
+  io.on('connection', (socket) => {
+    lastQRs.forEach((qr, numberId) => {
+      socket.emit('wa:qr', { numberId, qr });
+    });
+  });
 }
 
 function emit(event, data) {
@@ -36,6 +43,7 @@ async function createClient(numberId, label) {
     }),
     puppeteer: {
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -54,6 +62,7 @@ async function createClient(numberId, label) {
   client.on('qr', async (qr) => {
     console.log(`[${numberId}] QR received`);
     const qrDataUrl = await qrcode.toDataURL(qr);
+    lastQRs.set(numberId, qrDataUrl); // Sakla
     db.updateNumberStatus(numberId, 'qr_pending', null);
     emit('wa:qr', { numberId, qr: qrDataUrl });
     emit('wa:status', { numberId, status: 'qr_pending' });
@@ -62,6 +71,7 @@ async function createClient(numberId, label) {
   client.on('ready', async () => {
     const phone = client.info?.wid?.user || '';
     console.log(`[${numberId}] Ready! Phone: ${phone}`);
+    lastQRs.delete(numberId); // QR'ı temizle
     await db.updateNumberStatus(numberId, 'connected', phone);
     emit('wa:status', { numberId, status: 'connected', phone });
 
