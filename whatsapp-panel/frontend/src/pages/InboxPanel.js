@@ -119,32 +119,30 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       <div style={styles.sidebar}>
         <div style={styles.sidebarHeader}>
           <h2 style={styles.sidebarTitle}>Konuşmalar</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              style={styles.markAllBtn}
-              onClick={async () => {
-                try {
-                  await Promise.all(conversations.map(c => markRead(c.id)));
-                  onConversationsUpdate(conversations.map(c => ({ ...c, unread_count: 0 })));
-                } catch (e) {}
-              }}
-              title="Hepsini okundu işaretle"
-            >✓✓ Okundu</button>
-            <button
-              style={{ ...styles.markAllBtn, color: '#e74c3c', borderColor: '#3a1a1a' }}
-              onClick={async () => {
-                if (!window.confirm('Tüm konuşmaları silmek istediğinize emin misiniz?')) return;
-                try {
-                  await Promise.all(conversations.map(c => deleteConversation(c.id)));
-                  onConversationsUpdate([]);
-                  setSelected(null);
-                  setMessages([]);
-                } catch (e) {}
-              }}
-              title="Tüm konuşmaları sil"
-            >🗑 Tümünü Sil</button>
-            <span style={styles.convCount}>{filtered.length}</span>
-          </div>
+          <span style={styles.convCount}>{filtered.length}</span>
+        </div>
+        <div style={styles.sidebarActions}>
+          <button
+            style={styles.actionBtn}
+            onClick={async () => {
+              try {
+                await Promise.all(conversations.map(c => markRead(c.id)));
+                onConversationsUpdate(conversations.map(c => ({ ...c, unread_count: 0 })));
+              } catch (e) {}
+            }}
+          >✓✓ Hepsini Okundu</button>
+          <button
+            style={{ ...styles.actionBtn, color: '#e74c3c', borderColor: '#3a1a1a' }}
+            onClick={async () => {
+              if (!window.confirm('Tüm konuşmaları silmek istediğinize emin misiniz?')) return;
+              try {
+                await Promise.all(conversations.map(c => deleteConversation(c.id)));
+                onConversationsUpdate([]);
+                setSelected(null);
+                setMessages([]);
+              } catch (e) {}
+            }}
+          >🗑 Tümünü Sil</button>
         </div>
 
         {/* Numara Filtreleri */}
@@ -203,8 +201,21 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
               <div style={styles.convContent}>
                 <div style={styles.convTopRow}>
                   <span style={styles.convName}>{displayName(conv)}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={styles.convTime}>{timeAgo(conv.last_message_at)}</span>
+                    {conv.unread_count > 0 && (
+                      <button
+                        style={styles.convReadBtn}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await markRead(conv.id);
+                            onConversationsUpdate(conversations.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
+                          } catch (e) {}
+                        }}
+                        title="Okundu işaretle"
+                      >✓</button>
+                    )}
                     <button
                       style={styles.convDeleteBtn}
                       onClick={(e) => handleDeleteConversation(e, conv.id)}
@@ -338,10 +349,20 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: '8px',
     borderBottom: '1px solid #1a1a24',
   },
-  markAllBtn: {
-    background: 'none', border: '1px solid #2a2a3a', color: '#25d366',
-    borderRadius: '6px', padding: '2px 8px', fontSize: '12px',
+  sidebarActions: {
+    display: 'flex', gap: '6px', padding: '8px 12px',
+    borderBottom: '1px solid #1a1a24',
+  },
+  actionBtn: {
+    flex: 1, background: 'none', border: '1px solid #2a2a3a', color: '#25d366',
+    borderRadius: '6px', padding: '5px 8px', fontSize: '11px',
     cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+    whiteSpace: 'nowrap',
+  },
+  convReadBtn: {
+    background: 'none', border: 'none', color: '#25d366',
+    fontSize: '11px', cursor: 'pointer', padding: '1px 3px',
+    borderRadius: '3px', flexShrink: 0,
   },
   convCount: {
     background: '#1e1e2e', color: '#666',
