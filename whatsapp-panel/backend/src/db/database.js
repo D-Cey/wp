@@ -84,6 +84,7 @@ module.exports = {
   clearNumberStatuses: async () => {
     await run("UPDATE numbers SET status = 'disconnected'");
   },
+  deleteNumber: async (id) => {
     await run('DELETE FROM numbers WHERE id = ?', [id]);
   },
   updateNumberStatus: (id, status, phone) => run(
