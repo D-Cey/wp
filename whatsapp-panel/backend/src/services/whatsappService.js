@@ -76,9 +76,15 @@ async function createClient(numberId, label) {
     await db.updateNumberStatus(numberId, 'connected', phone);
     emit('wa:status', { numberId, status: 'connected', phone });
 
-    // Geçmiş mesajları 15 sn sonra arka planda çek
+    // Geçmiş mesajları 15 sn sonra arka planda çek - sadece ilk kez
     setTimeout(async () => {
       try {
+        // Bu numara için zaten mesaj varsa geçmiş çekme
+        const existing = await db.getConversationsByNumber(numberId);
+        if (existing && existing.length > 0) {
+          console.log(`[${numberId}] Zaten ${existing.length} konuşma var, geçmiş atlanıyor.`);
+          return;
+        }
         console.log(`[${numberId}] Geçmiş mesajlar çekiliyor...`);
         const chats = await client.getChats();
         let totalImported = 0;

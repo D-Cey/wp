@@ -120,7 +120,10 @@ module.exports = {
     JOIN numbers n ON c.number_id = n.id
     ORDER BY c.last_message_at DESC
   `),
-  getConversation: (numberId, contactWaId) => get(
+  getConversationsByNumber: (numberId) => all(
+    'SELECT * FROM conversations WHERE number_id = ?',
+    [numberId]
+  ),
     'SELECT * FROM conversations WHERE number_id = ? AND contact_wa_id = ?',
     [numberId, contactWaId]
   ),
