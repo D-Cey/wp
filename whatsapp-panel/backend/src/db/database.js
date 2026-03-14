@@ -124,24 +124,25 @@ module.exports = {
     'SELECT * FROM conversations WHERE number_id = ?',
     [numberId]
   ),
+  getConversation: (numberId, contactWaId) => get(
     'SELECT * FROM conversations WHERE number_id = ? AND contact_wa_id = ?',
     [numberId, contactWaId]
   ),
-  upsertConversation: async (numberId, contactWaId, lastMessage, timestamp) => {
+  upsertConversation: async (numberId, contactWaId, lastMessage, timestamp, fromMe = false) => {
     const existing = await get(
       'SELECT * FROM conversations WHERE number_id = ? AND contact_wa_id = ?',
       [numberId, contactWaId]
     );
     if (existing) {
       await run(
-        'UPDATE conversations SET last_message = ?, last_message_at = ?, unread_count = unread_count + 1 WHERE id = ?',
-        [lastMessage, timestamp, existing.id]
+        `UPDATE conversations SET last_message = ?, last_message_at = ?, unread_count = unread_count + ? WHERE id = ?`,
+        [lastMessage, timestamp, fromMe ? 0 : 1, existing.id]
       );
       return existing.id;
     }
     const result = await run(
-      'INSERT INTO conversations (number_id, contact_wa_id, last_message, last_message_at, unread_count) VALUES (?, ?, ?, ?, 1)',
-      [numberId, contactWaId, lastMessage, timestamp]
+      'INSERT INTO conversations (number_id, contact_wa_id, last_message, last_message_at, unread_count) VALUES (?, ?, ?, ?, ?)',
+      [numberId, contactWaId, lastMessage, timestamp, fromMe ? 0 : 1]
     );
     return result.lastID;
   },
@@ -162,11 +163,12 @@ module.exports = {
   insertMessage: async (waMessageId, conversationId, numberId, contactWaId, body, fromMe, timestamp) => {
     try {
       const result = await run(
-        'INSERT INTO messages (wa_message_id, conversation_id, number_id, contact_wa_id, body, from_me, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT OR IGNORE INTO messages (wa_message_id, conversation_id, number_id, contact_wa_id, body, from_me, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [waMessageId || null, conversationId, numberId, contactWaId, body, fromMe ? 1 : 0, timestamp]
       );
       return result.lastID;
     } catch (e) {
+      console.error('[DB] insertMessage error:', e.message, 'body:', body?.slice(0,30));
       return null;
     }
   },

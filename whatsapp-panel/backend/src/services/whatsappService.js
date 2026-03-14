@@ -257,7 +257,7 @@ async function createClient(numberId, label) {
       const body = msg.body || mediaLabel[msg.type] || (msg.hasMedia ? '[📎 Medya]' : '');
       if (!body) return;
       const timestamp = new Date(msg.timestamp * 1000).toISOString();
-      const convId = await db.upsertConversation(numberId, contactWaId, body, timestamp);
+      const convId = await db.upsertConversation(numberId, contactWaId, body, timestamp, true);
       await db.updateConversationAfterSend(numberId, contactWaId, body, timestamp);
       await db.insertMessage(
         msg.id._serialized, convId, numberId, contactWaId, body, true, timestamp
