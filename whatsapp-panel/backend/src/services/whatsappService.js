@@ -175,7 +175,13 @@ async function createClient(numberId, label) {
       }
       console.log(`[${numberId}] Final contactWaId: ${contactWaId}`);
 
-      const body = msg.body || '';
+      const mediaLabel = {
+        image: '[📷 Resim]', video: '[🎥 Video]', audio: '[🎵 Ses]',
+        voice: '[🎤 Sesli Mesaj]', document: '[📄 Dosya]', sticker: '[🎭 Çıkartma]',
+        location: '[📍 Konum]', contact_card: '[👤 Kişi]',
+      };
+      const body = msg.body || mediaLabel[msg.type] || (msg.hasMedia ? '[📎 Medya]' : '');
+      if (!body) return;
       const timestamp = new Date(msg.timestamp * 1000).toISOString();
 
       let contactName = null;
@@ -222,6 +228,11 @@ async function createClient(numberId, label) {
 
       let contactWaId = msg.to;
       let phone = '';
+      const mediaLabel = {
+        image: '[📷 Resim]', video: '[🎥 Video]', audio: '[🎵 Ses]',
+        voice: '[🎤 Sesli Mesaj]', document: '[📄 Dosya]', sticker: '[🎭 Çıkartma]',
+        location: '[📍 Konum]', contact_card: '[👤 Kişi]',
+      };
 
       if (contactWaId.includes('@lid')) {
         try {
@@ -243,10 +254,9 @@ async function createClient(numberId, label) {
         if (!contactWaId.includes('@c.us')) contactWaId = `${phone}@c.us`;
       }
 
-      const body = msg.body || '';
+      const body = msg.body || mediaLabel[msg.type] || (msg.hasMedia ? '[📎 Medya]' : '');
+      if (!body) return;
       const timestamp = new Date(msg.timestamp * 1000).toISOString();
-
-      await db.upsertContact(contactWaId, phone, null);
       const convId = await db.upsertConversation(numberId, contactWaId, body, timestamp);
       await db.updateConversationAfterSend(numberId, contactWaId, body, timestamp);
       await db.insertMessage(
