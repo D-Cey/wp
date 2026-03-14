@@ -147,11 +147,23 @@ async function createClient(numberId, label) {
               if (!body) continue;
               const ts = new Date(msg.timestamp * 1000).toISOString();
               const fromMe = msg.fromMe ? true : false;
-              const convId = await db.upsertConversation(numberId, contactWaId, body, ts, fromMe);
-              const inserted = await db.insertMessage(
-                msg.id._serialized, convId, numberId, contactWaId, body, fromMe, ts
-              );
-              if (inserted) updated = true;
+
+              // Konuşma yoksa oluştur, varsa sadece last_message güncelle (unread dokunma)
+              const existing = await db.getConversation(numberId, contactWaId);
+              if (!existing) {
+                await db.upsertConversation(numberId, contactWaId, body, ts, fromMe);
+              } else {
+                // Son mesaj zamanını güncelle ama unread_count'a dokunma
+                await db.updateLastMessageOnly(numberId, contactWaId, body, ts);
+              }
+
+              const conv = await db.getConversation(numberId, contactWaId);
+              if (conv) {
+                const inserted = await db.insertMessage(
+                  msg.id._serialized, conv.id, numberId, contactWaId, body, fromMe, ts
+                );
+                if (inserted) updated = true;
+              }
             }
           } catch (e) {}
         }

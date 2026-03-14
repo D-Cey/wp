@@ -146,7 +146,10 @@ module.exports = {
     );
     return result.lastID;
   },
-  markConversationRead: (id) => run('UPDATE conversations SET unread_count = 0 WHERE id = ?', [id]),
+  updateLastMessageOnly: (numberId, contactWaId, lastMessage, timestamp) => run(
+    'UPDATE conversations SET last_message = ?, last_message_at = ? WHERE number_id = ? AND contact_wa_id = ?',
+    [lastMessage, timestamp, numberId, contactWaId]
+  ),
   updateConversationAfterSend: (numberId, contactWaId, lastMessage, timestamp) => run(
     'UPDATE conversations SET last_message = ?, last_message_at = ?, unread_count = 0 WHERE number_id = ? AND contact_wa_id = ?',
     [lastMessage, timestamp, numberId, contactWaId]
