@@ -28,7 +28,27 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [translations, setTranslations] = useState({});
+  const [localReadIds, setLocalReadIds] = useState(new Set());
   const messagesEndRef = useRef(null);
+  const lastConvUpdateRef = useRef(null);
+
+  const getUnread = (conv) => localReadIds.has(conv.id) ? 0 : (conv.unread_count || 0);
+  const markLocalRead = (convId) => setLocalReadIds(prev => new Set([...prev, convId]));
+  const markAllLocalRead = () => setLocalReadIds(new Set(conversations.map(c => c.id)));
+
+  // Yeni mesaj gelince (unread_count arttıysa) localRead'den çıkar
+  useEffect(() => {
+    conversations.forEach(c => {
+      if ((c.unread_count || 0) > 0) {
+        setLocalReadIds(prev => {
+          if (!prev.has(c.id)) return prev;
+          const next = new Set(prev);
+          next.delete(c.id);
+          return next;
+        });
+      }
+    });
+  }, [conversations]);
 
   const detectLang = (text) => {
     const arabicRegex = /[\u0600-\u06FF]/;
@@ -82,8 +102,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       const msgs = Array.isArray(res.data) ? res.data : [];
       setMessages(msgs);
       setTranslations({});
-      await markRead(convId);
-      if (onMarkRead) onMarkRead(convId);
+      markLocalRead(convId);
+      markRead(convId).catch(() => {});
     } catch (e) { console.error(e); }
   };
 
@@ -92,9 +112,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       const res = await getMessages(convId);
       const msgs = Array.isArray(res.data) ? res.data : [];
       setMessages(msgs);
-      // Mark read - ama onMarkRead ÇAĞIRMA (döngü önleme)
-      markRead(convId);
-      if (onMarkRead) onMarkRead(convId);
+      markLocalRead(convId);
+      markRead(convId).catch(() => {});
     } catch (e) { console.error(e); }
   };
 
@@ -146,12 +165,13 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     return matchSearch && matchFilter;
   });
 
-  // Unread count per number
+  // Unread count per number - localReadIds dikkate alarak
   const unreadPerNumber = {};
   conversations.forEach(c => {
     if (!unreadPerNumber[c.number_id]) unreadPerNumber[c.number_id] = 0;
-    unreadPerNumber[c.number_id] += c.unread_count || 0;
+    unreadPerNumber[c.number_id] += getUnread(c);
   });
+  const totalUnreadLocal = conversations.reduce((s, c) => s + getUnread(c), 0);
 
   const displayName = (conv) => conv.contact_name || conv.contact_phone || conv.contact_wa_id;
 
@@ -167,10 +187,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
           <button
             style={styles.actionBtn}
             onClick={async () => {
-              try {
-                await Promise.all(conversations.map(c => markRead(c.id)));
-                if (onMarkAllRead) onMarkAllRead();
-              } catch (e) { console.error('Mark all read error:', e); }
+              markAllLocalRead();
+              conversations.forEach(c => markRead(c.id).catch(() => {}));
             }}
           >✓ Mark All Read</button>
           <button
@@ -194,10 +212,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
             onClick={() => setActiveFilter('all')}
           >
             Tümü
-            {conversations.reduce((s, c) => s + (c.unread_count || 0), 0) > 0 && (
-              <span style={styles.filterBadge}>
-                {conversations.reduce((s, c) => s + (c.unread_count || 0), 0)}
-              </span>
+            {totalUnreadLocal > 0 && (
+              <span style={styles.filterBadge}>{totalUnreadLocal}</span>
             )}
           </button>
           {numbers.filter(n => n.status === 'connected' || n.currentStatus === 'connected').map(n => (
@@ -245,15 +261,13 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
                   <span style={styles.convName}>{displayName(conv)}</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <span style={styles.convTime}>{timeAgo(conv.last_message_at)}</span>
-                    {conv.unread_count > 0 && (
+                    {getUnread(conv) > 0 && (
                       <button
                         style={styles.convReadBtn}
                         onClick={async (e) => {
                           e.stopPropagation();
-                          try {
-                            await markRead(conv.id);
-                            if (onMarkRead) onMarkRead(conv.id);
-                          } catch (e) {}
+                          markLocalRead(conv.id);
+                          markRead(conv.id).catch(() => {});
                         }}
                         title="Okundu işaretle"
                       >✓</button>
@@ -270,8 +284,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
                     <span style={styles.convNumberTag}>{conv.number_label}</span>
                     {conv.last_message}
                   </span>
-                  {conv.unread_count > 0 && (
-                    <span style={styles.unreadBadge}>{conv.unread_count}</span>
+                  {getUnread(conv) > 0 && (
+                    <span style={styles.unreadBadge}>{getUnread(conv)}</span>
                   )}
                 </div>
               </div>
