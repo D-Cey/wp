@@ -156,15 +156,16 @@ async function createClient(numberId, label) {
         try {
           const contact = await msg.getContact();
           const num = contact.number || contact.id?.user;
+          console.log(`[${numberId}] Contact resolution: lid=${contactWaId} number=${num} id=${contact.id?._serialized}`);
           if (num) {
             phone = num;
             contactWaId = `${num}@c.us`;
           } else {
-            // number yoksa lid user kısmını kullan
             phone = contactWaId.replace(/@.*/, '');
             contactWaId = `${phone}@c.us`;
           }
         } catch (e) {
+          console.log(`[${numberId}] getContact failed: ${e.message}`);
           phone = contactWaId.replace(/@.*/, '');
           contactWaId = `${phone}@c.us`;
         }
@@ -172,6 +173,7 @@ async function createClient(numberId, label) {
         phone = contactWaId.replace(/@.*/, '');
         if (!contactWaId.includes('@c.us')) contactWaId = `${phone}@c.us`;
       }
+      console.log(`[${numberId}] Final contactWaId: ${contactWaId}`);
 
       const body = msg.body || '';
       const timestamp = new Date(msg.timestamp * 1000).toISOString();
