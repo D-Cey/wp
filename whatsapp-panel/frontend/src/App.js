@@ -104,11 +104,6 @@ function Dashboard() {
     setActiveTab('inbox');
   };
 
-  const handleMessageSent = (updatedConvs, convId) => {
-    setConversations(updatedConvs);
-    setActiveTab('inbox');
-  };
-
   const pendingQRs = Object.entries(qrData).filter(
     ([id]) => numberStatuses[id] === 'qr_pending'
   );
