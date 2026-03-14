@@ -72,8 +72,6 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     } catch {}
   };
 
-  const lastConvUpdateRef = useRef(null);
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
