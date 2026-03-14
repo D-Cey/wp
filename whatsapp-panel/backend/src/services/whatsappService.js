@@ -121,6 +121,50 @@ async function createClient(numberId, label) {
         console.error(`[${numberId}] Geçmiş mesaj hatası:`, e.message);
       }
     }, 15000);
+
+    // 20 saniyede bir son aktif sohbetleri poll et
+    const pollInterval = setInterval(async () => {
+      try {
+        if (!client.info) return;
+        const chats = await client.getChats();
+        const recent = chats
+          .filter(c => !c.isGroup && c.lastMessage)
+          .sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0))
+          .slice(0, 20);
+
+        let updated = false;
+        for (const chat of recent) {
+          try {
+            const contactWaId = `${chat.id.user}@c.us`;
+            const phone2 = chat.id.user;
+            const messages = await chat.fetchMessages({ limit: 5 });
+            if (!messages || messages.length === 0) continue;
+
+            await db.upsertContact(contactWaId, phone2, chat.name || null);
+
+            for (const msg of messages) {
+              const body = msg.body || '';
+              if (!body) continue;
+              const ts = new Date(msg.timestamp * 1000).toISOString();
+              const fromMe = msg.fromMe ? true : false;
+              const convId = await db.upsertConversation(numberId, contactWaId, body, ts, fromMe);
+              const inserted = await db.insertMessage(
+                msg.id._serialized, convId, numberId, contactWaId, body, fromMe, ts
+              );
+              if (inserted) updated = true;
+            }
+          } catch (e) {}
+        }
+
+        if (updated) {
+          const conversations = await db.getConversations();
+          emit('wa:conversations_updated', conversations);
+        }
+      } catch (e) {}
+    }, 20000);
+
+    // Client kapanınca interval'i temizle
+    client.on('disconnected', () => clearInterval(pollInterval));
   });
 
   client.on('authenticated', () => {
@@ -236,19 +280,38 @@ async function createClient(numberId, label) {
 
       if (contactWaId.includes('@lid') || contactWaId.includes('@s.whatsapp')) {
         try {
-          const contact = await msg.getContact();
+          // Önce client.getContactById ile dene - en güvenilir yol
+          const contact = await client.getContactById(contactWaId);
           const num = contact.number || contact.id?.user;
-          if (num) {
+          if (num && num.length > 10) {
             phone = num;
             contactWaId = `${num}@c.us`;
           } else {
-            phone = contactWaId.replace(/@.*/, '');
-            contactWaId = `${phone}@c.us`;
+            throw new Error('number too short');
           }
         } catch (e) {
-          console.log(`[${numberId}] message_create getContact failed: ${e.message}`);
-          phone = contactWaId.replace(/@.*/, '');
-          contactWaId = `${phone}@c.us`;
+          try {
+            // Fallback: msg.getContact()
+            const contact = await msg.getContact();
+            const num = contact.number || contact.id?.user;
+            if (num && num.length > 10) {
+              phone = num;
+              contactWaId = `${num}@c.us`;
+            } else {
+              throw new Error('number too short');
+            }
+          } catch (e2) {
+            // Son çare: mevcut DB'de bu lid'e ait konuşma var mı bak
+            const lidUser = msg.to.replace(/@.*/, '');
+            const existingConv = await db.getConversationByLidUser(numberId, lidUser);
+            if (existingConv) {
+              contactWaId = existingConv.contact_wa_id;
+              phone = contactWaId.replace('@c.us', '');
+            } else {
+              phone = lidUser;
+              contactWaId = `${lidUser}@c.us`;
+            }
+          }
         }
       } else {
         phone = contactWaId.replace(/@.*/, '');
