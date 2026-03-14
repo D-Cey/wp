@@ -150,6 +150,10 @@ module.exports = {
     'UPDATE conversations SET last_message = ?, last_message_at = ? WHERE number_id = ? AND contact_wa_id = ?',
     [lastMessage, timestamp, numberId, contactWaId]
   ),
+  incrementUnread: (convId) => run(
+    'UPDATE conversations SET unread_count = unread_count + 1 WHERE id = ?',
+    [convId]
+  ),
   updateConversationAfterSend: (numberId, contactWaId, lastMessage, timestamp) => run(
     'UPDATE conversations SET last_message = ?, last_message_at = ?, unread_count = 0 WHERE number_id = ? AND contact_wa_id = ?',
     [lastMessage, timestamp, numberId, contactWaId]

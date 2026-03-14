@@ -132,7 +132,7 @@ async function createClient(numberId, label) {
           .sort((a, b) => (b.lastMessage?.timestamp || 0) - (a.lastMessage?.timestamp || 0))
           .slice(0, 20);
 
-        let updated = false;
+        let newMessages = [];
         for (const chat of recent) {
           try {
             const contactWaId = `${chat.id.user}@c.us`;
@@ -148,13 +148,10 @@ async function createClient(numberId, label) {
               const ts = new Date(msg.timestamp * 1000).toISOString();
               const fromMe = msg.fromMe ? true : false;
 
-              // Konuşma yoksa oluştur, varsa sadece last_message güncelle (unread dokunma)
+              // Konuşma yoksa oluştur
               const existing = await db.getConversation(numberId, contactWaId);
               if (!existing) {
                 await db.upsertConversation(numberId, contactWaId, body, ts, fromMe);
-              } else {
-                // Son mesaj zamanını güncelle ama unread_count'a dokunma
-                await db.updateLastMessageOnly(numberId, contactWaId, body, ts);
               }
 
               const conv = await db.getConversation(numberId, contactWaId);
@@ -162,13 +159,20 @@ async function createClient(numberId, label) {
                 const inserted = await db.insertMessage(
                   msg.id._serialized, conv.id, numberId, contactWaId, body, fromMe, ts
                 );
-                if (inserted) updated = true;
+                if (inserted) {
+                  // Gerçekten yeni mesaj - last_message güncelle, unread sadece gelen mesajda artır
+                  await db.updateLastMessageOnly(numberId, contactWaId, body, ts);
+                  if (!fromMe) {
+                    await db.incrementUnread(conv.id);
+                  }
+                  newMessages.push({ numberId, contactWaId, body, fromMe, ts });
+                }
               }
             }
           } catch (e) {}
         }
 
-        if (updated) {
+        if (newMessages.length > 0) {
           const conversations = await db.getConversations();
           emit('wa:conversations_updated', conversations);
         }
