@@ -235,22 +235,18 @@ async function createClient(numberId, label) {
       };
 
       if (contactWaId.includes('@lid') || contactWaId.includes('@s.whatsapp')) {
-        // Chat üzerinden doğru numarayı bul
         try {
-          const chat = await msg.getChat();
-          const chatId = chat.id._serialized;
-          if (chatId.includes('@c.us')) {
-            phone = chat.id.user;
-            contactWaId = chatId;
+          const contact = await msg.getContact();
+          const num = contact.number || contact.id?.user;
+          if (num) {
+            phone = num;
+            contactWaId = `${num}@c.us`;
           } else {
-            // Kişi listesinde ara
-            const contact = await msg.getContact();
-            const num = contact.number || contact.id?.user;
-            phone = num || contactWaId.replace(/@.*/, '');
+            phone = contactWaId.replace(/@.*/, '');
             contactWaId = `${phone}@c.us`;
           }
         } catch (e) {
-          console.log(`[${numberId}] message_create getChat failed: ${e.message}`);
+          console.log(`[${numberId}] message_create getContact failed: ${e.message}`);
           phone = contactWaId.replace(/@.*/, '');
           contactWaId = `${phone}@c.us`;
         }
