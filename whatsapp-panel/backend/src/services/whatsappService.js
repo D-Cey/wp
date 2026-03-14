@@ -147,18 +147,30 @@ async function createClient(numberId, label) {
     try {
       if (msg.from === 'status@broadcast') return;
       console.log(`[${numberId}] Gelen mesaj: from=${msg.from} body=${msg.body?.slice(0,30)}`);
-      
-      // Normalize @lid to @c.us
+
       let contactWaId = msg.from;
       let phone = '';
-      try {
-        const contact = await msg.getContact();
-        const num = contact.number || contact.id?.user || contactWaId.replace(/@.*/, '');
-        phone = num;
-        contactWaId = `${num}@c.us`;
-      } catch (e) {
+
+      // @lid formatını @c.us'a çevir
+      if (contactWaId.includes('@lid')) {
+        try {
+          const contact = await msg.getContact();
+          const num = contact.number || contact.id?.user;
+          if (num) {
+            phone = num;
+            contactWaId = `${num}@c.us`;
+          } else {
+            // number yoksa lid user kısmını kullan
+            phone = contactWaId.replace(/@.*/, '');
+            contactWaId = `${phone}@c.us`;
+          }
+        } catch (e) {
+          phone = contactWaId.replace(/@.*/, '');
+          contactWaId = `${phone}@c.us`;
+        }
+      } else {
         phone = contactWaId.replace(/@.*/, '');
-        contactWaId = `${phone}@c.us`;
+        if (!contactWaId.includes('@c.us')) contactWaId = `${phone}@c.us`;
       }
 
       const body = msg.body || '';
@@ -208,14 +220,25 @@ async function createClient(numberId, label) {
 
       let contactWaId = msg.to;
       let phone = '';
-      try {
-        const contact = await msg.getContact();
-        const num = contact.number || contact.id?.user || contactWaId.replace(/@.*/, '');
-        phone = num;
-        contactWaId = `${num}@c.us`;
-      } catch (e) {
+
+      if (contactWaId.includes('@lid')) {
+        try {
+          const contact = await msg.getContact();
+          const num = contact.number || contact.id?.user;
+          if (num) {
+            phone = num;
+            contactWaId = `${num}@c.us`;
+          } else {
+            phone = contactWaId.replace(/@.*/, '');
+            contactWaId = `${phone}@c.us`;
+          }
+        } catch (e) {
+          phone = contactWaId.replace(/@.*/, '');
+          contactWaId = `${phone}@c.us`;
+        }
+      } else {
         phone = contactWaId.replace(/@.*/, '');
-        contactWaId = `${phone}@c.us`;
+        if (!contactWaId.includes('@c.us')) contactWaId = `${phone}@c.us`;
       }
 
       const body = msg.body || '';
