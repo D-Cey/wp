@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { getNumbers, addNumber, deleteNumber } from '../api';
 
-export default function NumbersModal({ onClose, numberStatuses, qrData: externalQrData = {} }) {
-  const [numbers, setNumbers] = useState([]);
-  const [qrData, setQrData] = useState({});
+export default function NumbersModal({ onClose, numberStatuses, qrData: externalQrData = {}, numbers: numbersProp = [], onNumbersChange }) {
+  const [numbers, setNumbers] = useState(numbersProp);
   const [form, setForm] = useState({ id: '', label: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    loadNumbers();
-  }, []);
+    setNumbers(numbersProp);
+  }, [numbersProp]);
 
   // Update statuses from socket events
   useEffect(() => {
@@ -22,22 +21,14 @@ export default function NumbersModal({ onClose, numberStatuses, qrData: external
     }
   }, [numberStatuses]);
 
-  const loadNumbers = async () => {
-    try {
-      const res = await getNumbers();
-      setNumbers(res.data);
-    } catch (e) {}
-  };
-
-  const handleAdd = async (e) => {
-    e.preventDefault();
+  const handleAdd = async () => {
     if (!form.id || !form.label) return;
     setLoading(true);
     setError('');
     try {
       await addNumber(form.id, form.label);
       setForm({ id: '', label: '' });
-      await loadNumbers();
+      if (onNumbersChange) onNumbersChange();
     } catch (err) {
       setError(err.response?.data?.error || 'Hata oluştu');
     } finally {
@@ -48,17 +39,10 @@ export default function NumbersModal({ onClose, numberStatuses, qrData: external
   const handleDelete = async (id) => {
     if (!window.confirm('Bu numarayı kaldırmak istediğinize emin misiniz?')) return;
     try {
-      const res = await deleteNumber(id);
-      if (res.data?.numbers) {
-        setNumbers(res.data.numbers.map(n => ({
-          ...n,
-          currentStatus: numberStatuses[n.id] || n.status,
-        })));
-      } else {
-        await loadNumbers();
-      }
+      await deleteNumber(id);
+      if (onNumbersChange) onNumbersChange();
     } catch (e) {
-      await loadNumbers();
+      if (onNumbersChange) onNumbersChange();
     }
   };
 
@@ -88,77 +72,70 @@ export default function NumbersModal({ onClose, numberStatuses, qrData: external
           <button style={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
 
-        {/* Numara Listesi */}
-        <div style={styles.list}>
-          {numbers.length === 0 && (
-            <p style={styles.empty}>Henüz numara eklenmedi</p>
-          )}
-          {numbers.map(n => (
-            <div key={n.id} style={styles.numberItem}>
-              <div style={styles.numberRow}>
-                <div style={styles.numberInfo}>
-                  <div style={styles.numberLabel}>{n.label}</div>
-                  <div style={styles.numberMeta}>
-                    <code style={styles.numberId}>{n.id}</code>
-                    {n.phone && <span style={styles.numberPhone}> · {n.phone}</span>}
+        <div style={styles.scrollArea}>
+          {/* Numara Listesi */}
+          <div style={styles.list}>
+            {numbers.length === 0 && (
+              <p style={styles.empty}>Henüz numara eklenmedi</p>
+            )}
+            {numbers.map(n => (
+              <div key={n.id} style={styles.numberItem}>
+                <div style={styles.numberRow}>
+                  <div style={styles.numberInfo}>
+                    <div style={styles.numberLabel}>{n.label}</div>
+                    <div style={styles.numberMeta}>
+                      <code style={styles.numberId}>{n.id}</code>
+                      {n.phone && <span style={styles.numberPhone}> · {n.phone}</span>}
+                    </div>
+                  </div>
+                  <div style={styles.numberRight}>
+                    <span style={{ ...styles.statusBadge, background: statusColor(n.currentStatus || n.status) }}>
+                      {statusLabel(n.currentStatus || n.status)}
+                    </span>
+                    <button
+                      style={styles.deleteBtn}
+                      onClick={() => handleDelete(n.id)}
+                      title="Kaldır"
+                    >✕</button>
                   </div>
                 </div>
-                <div style={styles.numberRight}>
-                  <span style={{ ...styles.statusBadge, background: statusColor(n.currentStatus || n.status) }}>
-                    {statusLabel(n.currentStatus || n.status)}
-                  </span>
-                  <button
-                    style={styles.deleteBtn}
-                    onClick={() => handleDelete(n.id)}
-                    title="Kaldır"
-                  >✕</button>
-                </div>
+                {/* QR Code - sadece bu numara için, sadece bir kez */}
+                {(n.currentStatus === 'qr_pending' || numberStatuses[n.id] === 'qr_pending') && externalQrData[n.id] && (
+                  <div style={styles.qrInline}>
+                    <p style={styles.qrLabel}>📲 QR kodu tarat → WhatsApp → Bağlı Cihazlar → Cihaz Ekle</p>
+                    <img src={externalQrData[n.id]} alt="QR" style={styles.qrImage} />
+                  </div>
+                )}
               </div>
-              {/* QR Code inline */}
-              {(n.currentStatus === 'qr_pending' || numberStatuses[n.id] === 'qr_pending') && externalQrData[n.id] && (
-                <div style={styles.qrInline}>
-                  <p style={styles.qrLabel}>📲 QR kodu tarat → WhatsApp → Bağlı Cihazlar → Cihaz Ekle</p>
-                  <img src={externalQrData[n.id]} alt="QR" style={styles.qrImage} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* QR Kodları */}
-        {Object.entries(qrData).map(([id, qr]) => (
-          <div key={id} style={styles.qrContainer}>
-            <p style={styles.qrLabel}><b>{id}</b> için QR Kodu Tara</p>
-            <img src={qr} alt="QR" style={styles.qrImage} />
-            <p style={styles.qrHint}>WhatsApp → Bağlı Cihazlar → Cihaz Ekle</p>
+            ))}
           </div>
-        ))}
 
-        {/* Yeni Numara Ekle */}
-        <div style={styles.addSection}>
-          <h3 style={styles.addTitle}>Yeni Numara Bağla</h3>
-          <form onSubmit={handleAdd} style={styles.addForm}>
-            <input
-              style={styles.input}
-              placeholder="ID (örn: numara_a)"
-              value={form.id}
-              onChange={(e) => setForm({ ...form, id: e.target.value.toLowerCase().replace(/\s/g, '_') })}
-            />
-            <input
-              style={styles.input}
-              placeholder="Etiket (örn: Numara A)"
-              value={form.label}
-              onChange={(e) => setForm({ ...form, label: e.target.value })}
-            />
-            {error && <p style={styles.error}>{error}</p>}
-            <button style={styles.addBtn} type="submit" disabled={loading}>
-              {loading ? 'Bağlanıyor...' : '+ Ekle & QR Oluştur'}
-            </button>
-          </form>
-          <p style={styles.hint}>
-            Numara ekledikten sonra otomatik QR kodu oluşacak. <br />
-            QR kodunu WhatsApp ile tarat.
-          </p>
+          {/* Yeni Numara Ekle */}
+          <div style={styles.addSection}>
+            <h3 style={styles.addTitle}>Yeni Numara Bağla</h3>
+            <div style={styles.addForm}>
+              <input
+                style={styles.input}
+                placeholder="ID (örn: numara_a)"
+                value={form.id}
+                onChange={(e) => setForm({ ...form, id: e.target.value.toLowerCase().replace(/\s/g, '_') })}
+              />
+              <input
+                style={styles.input}
+                placeholder="Etiket (örn: Numara A)"
+                value={form.label}
+                onChange={(e) => setForm({ ...form, label: e.target.value })}
+              />
+              {error && <p style={styles.error}>{error}</p>}
+              <button style={styles.addBtn} onClick={handleAdd} disabled={loading}>
+                {loading ? 'Bağlanıyor...' : '+ Ekle & QR Oluştur'}
+              </button>
+            </div>
+            <p style={styles.hint}>
+              Numara ekledikten sonra otomatik QR kodu oluşacak. <br />
+              QR kodunu WhatsApp ile tarat.
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -172,13 +149,17 @@ const styles = {
   },
   modal: {
     background: '#111118', border: '1px solid #1e1e2e', borderRadius: '16px',
-    width: '500px', maxHeight: '80vh', overflowY: 'auto',
+    width: '500px', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
     fontFamily: "'DM Sans', sans-serif",
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '24px 24px 16px',
     borderBottom: '1px solid #1e1e2e',
+    flexShrink: 0,
+  },
+  scrollArea: {
+    overflowY: 'auto', flex: 1,
   },
   title: { color: '#fff', margin: 0, fontSize: '18px', fontWeight: '600' },
   closeBtn: {

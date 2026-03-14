@@ -52,6 +52,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     } catch {}
   };
 
+  const lastConvUpdateRef = useRef(null);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -62,11 +64,14 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     }
   }, [selected?.id]);
 
-  // Yeni mesaj gelince sadece mesajları güncelle, çeviri yapma
+  // Sadece seçili konuşmada yeni mesaj gelince güncelle
   useEffect(() => {
-    if (selected) {
-      const updated = conversations.find(c => c.id === selected.id);
-      if (updated) setSelected(updated);
+    if (!selected) return;
+    const updated = conversations.find(c => c.id === selected.id);
+    if (!updated) return;
+    // Son mesaj değiştiyse mesajları yenile
+    if (updated.last_message_at !== lastConvUpdateRef.current) {
+      lastConvUpdateRef.current = updated.last_message_at;
       refreshMessages(selected.id);
     }
   }, [conversations]);
@@ -87,7 +92,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       const res = await getMessages(convId);
       const msgs = Array.isArray(res.data) ? res.data : [];
       setMessages(msgs);
-      await markRead(convId);
+      // Mark read - ama onMarkRead ÇAĞIRMA (döngü önleme)
+      markRead(convId);
       if (onMarkRead) onMarkRead(convId);
     } catch (e) { console.error(e); }
   };
@@ -172,11 +178,11 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
             onClick={async () => {
               if (!window.confirm('Tüm konuşmaları silmek istediğinize emin misiniz?')) return;
               try {
-                await Promise.all(conversations.map(c => deleteConversation(c.id)));
+                await Promise.allSettled(conversations.map(c => deleteConversation(c.id)));
                 onConversationsUpdate([]);
                 setSelected(null);
                 setMessages([]);
-              } catch (e) {}
+              } catch (e) { console.error(e); }
             }}
           >🗑 Tümünü Sil</button>
         </div>

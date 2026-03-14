@@ -45,7 +45,7 @@ function Dashboard() {
   };
 
   const [blockSocketUpdate, setBlockSocketUpdate] = useState(false);
-  const readSetRef = React.useRef(new Set()); // kullanıcının okudu işaretlediği conv id'leri
+  const readSetRef = React.useRef(new Set());
 
   useSocket(token, {
     onQR: ({ numberId, qr }) => {
@@ -64,14 +64,13 @@ function Dashboard() {
     },
     onMessage: (data) => {
       if (!data.fromMe) {
-        // Yeni mesaj gelince readSet'ten çıkar
+        // Yeni mesaj geldi - readSet'ten çıkar
         readSetRef.current.delete(data.conversationId);
         showNotif(`💬 ${data.numberLabel}: ${data.contactName || data.phone} → ${data.body.slice(0, 40)}`);
       }
     },
     onConversationsUpdated: (convs) => {
       if (!Array.isArray(convs)) return;
-      // readSet'teki konuşmaların unread_count'unu 0 yap
       setConversations(convs.map(c =>
         readSetRef.current.has(c.id) ? { ...c, unread_count: 0 } : c
       ));
@@ -83,7 +82,8 @@ function Dashboard() {
   };
 
   const handleMarkRead = (convId) => {
-    readSetRef.current.add(convId);
+    readSetRef.current.add(Number(convId));
+    readSetRef.current.add(String(convId));
     setConversations(prev => prev.map(c =>
       c.id === convId ? { ...c, unread_count: 0 } : c
     ));
@@ -91,9 +91,17 @@ function Dashboard() {
 
   const handleMarkAllRead = () => {
     setConversations(prev => {
-      prev.forEach(c => readSetRef.current.add(c.id));
+      prev.forEach(c => {
+        readSetRef.current.add(Number(c.id));
+        readSetRef.current.add(String(c.id));
+      });
       return prev.map(c => ({ ...c, unread_count: 0 }));
     });
+  };
+
+  const handleMessageSent = (updatedConvs) => {
+    setConversations(updatedConvs);
+    setActiveTab('inbox');
   };
 
   const handleMessageSent = (updatedConvs, convId) => {
@@ -187,6 +195,8 @@ function Dashboard() {
           onClose={() => { setShowNumbers(false); loadInitialData(); }}
           numberStatuses={numberStatuses}
           qrData={qrData}
+          numbers={numbers}
+          onNumbersChange={loadInitialData}
         />
       )}
       {pendingQRs.length > 0 && (
