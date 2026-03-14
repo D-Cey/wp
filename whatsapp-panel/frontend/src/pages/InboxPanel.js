@@ -27,8 +27,7 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
   const [nameInput, setNameInput] = useState('');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
-  const [translations, setTranslations] = useState({}); // { msgId: { tr: '...', showOriginal: false } }
-  const [translating, setTranslating] = useState(false);
+  const [translations, setTranslations] = useState({});
   const messagesEndRef = useRef(null);
 
   const detectLang = (text) => {
@@ -36,39 +35,21 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     return arabicRegex.test(text) ? 'ar' : 'en';
   };
 
-  const translateText = async (text) => {
+  const translateMessage = async (msgId, text) => {
+    if (translations[msgId]?.tr) {
+      // Zaten çevrilmiş, orijinal/çeviri arasında geçiş yap
+      setTranslations(p => ({ ...p, [msgId]: { ...p[msgId], showOriginal: !p[msgId].showOriginal } }));
+      return;
+    }
     try {
       const sourceLang = detectLang(text);
-      if (sourceLang === 'tr') return null; // Türkçe ise çevirme
       const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|tr`);
       const data = await res.json();
       const translated = data?.responseData?.translatedText;
-      if (!translated || translated.includes('INVALID') || translated.includes('MYMEMORY')) return null;
-      return translated;
-    } catch {
-      return null;
-    }
-  };
-
-  const translateAllMessages = async (msgs) => {
-    setTranslating(true);
-    const newTranslations = {};
-    const toTranslate = msgs.filter(m => m.body && m.body.length > 0 && m.body.length <= 500);
-    for (const msg of toTranslate) {
-      const translated = await translateText(msg.body);
-      if (translated && translated !== msg.body) {
-        newTranslations[msg.id] = { tr: translated, showOriginal: false };
+      if (translated && !translated.includes('INVALID') && !translated.includes('MYMEMORY')) {
+        setTranslations(p => ({ ...p, [msgId]: { tr: translated, showOriginal: false } }));
       }
-    }
-    setTranslations(newTranslations);
-    setTranslating(false);
-  };
-
-  const toggleOriginal = (msgId) => {
-    setTranslations(prev => ({
-      ...prev,
-      [msgId]: { ...prev[msgId], showOriginal: !prev[msgId]?.showOriginal }
-    }));
+    } catch {}
   };
 
   useEffect(() => {
@@ -97,26 +78,15 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       setMessages(msgs);
       setTranslations({});
       await markRead(convId);
-      translateAllMessages(msgs);
     } catch (e) { console.error(e); }
   };
 
-  // Socket güncellemelerinde sadece mesajları yükle, yeni mesajları çevir
   const refreshMessages = async (convId) => {
     try {
       const res = await getMessages(convId);
       const msgs = Array.isArray(res.data) ? res.data : [];
       setMessages(msgs);
       await markRead(convId);
-      // Sadece çevrilmemiş yeni mesajları çevir
-      const existingIds = Object.keys(translations).map(String);
-      const newMsgs = msgs.filter(m => m.body && !existingIds.includes(String(m.id)));
-      for (const msg of newMsgs) {
-        const translated = await translateText(msg.body);
-        if (translated && translated !== msg.body) {
-          setTranslations(p => ({ ...p, [msg.id]: { tr: translated, showOriginal: false } }));
-        }
-      }
     } catch (e) { console.error(e); }
   };
 
@@ -354,11 +324,6 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
               {messages.length === 0 && (
                 <div style={styles.noMessages}>Mesaj bulunamadı</div>
               )}
-              {translating && (
-                <div style={{ textAlign: 'center', color: '#555', fontSize: '12px', padding: '8px' }}>
-                  🌐 Mesajlar çevriliyor...
-                </div>
-              )}
               {messages.filter(msg => {
                 if (!msg.body) return false;
                 if (msg.body.length > 500 && !msg.body.includes(' ')) return false;
@@ -367,21 +332,19 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
                 const isMe = msg.from_me === 1;
                 const trans = translations[msg.id];
                 const displayText = (trans && !trans.showOriginal && trans.tr) ? trans.tr : msg.body;
-                const hasTranslation = trans && trans.tr && trans.tr !== msg.body;
+                const hasTranslation = trans?.tr && trans.tr !== msg.body;
                 return (
                   <div key={msg.id} style={{ ...styles.msgRow, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                     <div style={{ ...styles.msgBubble, ...(isMe ? styles.msgBubbleMe : styles.msgBubbleThem) }}>
                       <p style={styles.msgText}>{displayText}</p>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
-                        {hasTranslation && (
-                          <button
-                            style={styles.translateToggleBtn}
-                            onClick={() => toggleOriginal(msg.id)}
-                            title={trans.showOriginal ? 'Türkçeye çevir' : 'Orijinali göster'}
-                          >
-                            {trans.showOriginal ? '🌐 Çevir' : '💬 Orijinal'}
-                          </button>
-                        )}
+                        <button
+                          style={styles.translateToggleBtn}
+                          onClick={() => translateMessage(msg.id, msg.body)}
+                          title="Çevir / Orijinal"
+                        >
+                          {hasTranslation ? (trans.showOriginal ? '🌐 Çevir' : '💬 Orijinal') : '🌐'}
+                        </button>
                         <span style={styles.msgTime}>{fullTime(msg.timestamp)}</span>
                       </div>
                     </div>
