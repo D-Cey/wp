@@ -198,8 +198,40 @@ async function createClient(numberId, label) {
     }
   });
 
-  // message_create is handled by sendMessage route directly
-  // No need to handle it here to avoid duplicates
+  // message_create - diğer cihazlardan gönderilen mesajları yakala
+  client.on('message_create', async (msg) => {
+    try {
+      if (!msg.fromMe) return; // Sadece kendi gönderdiğimiz mesajlar
+      if (msg.from === 'status@broadcast') return;
+
+      let contactWaId = msg.to;
+      let phone = '';
+      try {
+        const contact = await msg.getContact();
+        const num = contact.number || contact.id?.user || contactWaId.replace(/@.*/, '');
+        phone = num;
+        contactWaId = `${num}@c.us`;
+      } catch (e) {
+        phone = contactWaId.replace(/@.*/, '');
+        contactWaId = `${phone}@c.us`;
+      }
+
+      const body = msg.body || '';
+      const timestamp = new Date(msg.timestamp * 1000).toISOString();
+
+      await db.upsertContact(contactWaId, phone, null);
+      const convId = await db.upsertConversation(numberId, contactWaId, body, timestamp);
+      await db.updateConversationAfterSend(numberId, contactWaId, body, timestamp);
+      await db.insertMessage(
+        msg.id._serialized, convId, numberId, contactWaId, body, true, timestamp
+      );
+
+      const conversations = await db.getConversations();
+      emit('wa:conversations_updated', conversations);
+    } catch (err) {
+      console.error(`[${numberId}] message_create error:`, err);
+    }
+  });
 
   client.initialize();
   return { status: 'initializing' };

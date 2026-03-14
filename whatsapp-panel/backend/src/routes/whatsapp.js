@@ -30,8 +30,25 @@ router.post('/numbers', auth, async (req, res) => {
 // DELETE /api/wa/numbers/:id - numara sil
 router.delete('/numbers/:id', auth, async (req, res) => {
   try {
-    await waService.disconnectClient(req.params.id);
-    await db.deleteNumber(req.params.id);
+    const numberId = req.params.id;
+    await waService.disconnectClient(numberId);
+    await db.deleteNumber(numberId);
+
+    // Session dosyalarını sil - tüm olası path'leri dene
+    const fs = require('fs');
+    const path = require('path');
+    const sessionPath = process.env.WA_SESSION_PATH || './sessions';
+    const possiblePaths = [
+      path.join(sessionPath, `session-${numberId}`),
+      path.join(sessionPath, numberId),
+      path.join('.wwebjs_auth', `session-${numberId}`),
+    ];
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) fs.rmSync(p, { recursive: true, force: true });
+      } catch {}
+    }
+
     const numbers = await db.getNumbers();
     res.json({ success: true, numbers });
   } catch (err) {
