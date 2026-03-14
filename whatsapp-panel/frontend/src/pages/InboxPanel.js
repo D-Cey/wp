@@ -27,7 +27,40 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
   const [nameInput, setNameInput] = useState('');
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [translations, setTranslations] = useState({}); // { msgId: { tr: '...', showOriginal: false } }
+  const [translating, setTranslating] = useState(false);
   const messagesEndRef = useRef(null);
+
+  const translateText = async (text, targetLang = 'tr') => {
+    try {
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=auto|${targetLang}`);
+      const data = await res.json();
+      return data?.responseData?.translatedText || text;
+    } catch {
+      return text;
+    }
+  };
+
+  const translateAllMessages = async (msgs) => {
+    setTranslating(true);
+    const newTranslations = {};
+    const toTranslate = msgs.filter(m => m.body && m.body.length > 0 && m.body.length <= 500);
+    for (const msg of toTranslate) {
+      const translated = await translateText(msg.body);
+      if (translated && translated !== msg.body) {
+        newTranslations[msg.id] = { tr: translated, showOriginal: false };
+      }
+    }
+    setTranslations(newTranslations);
+    setTranslating(false);
+  };
+
+  const toggleOriginal = (msgId) => {
+    setTranslations(prev => ({
+      ...prev,
+      [msgId]: { ...prev[msgId], showOriginal: !prev[msgId]?.showOriginal }
+    }));
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,15 +77,44 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     if (selected) {
       const updated = conversations.find(c => c.id === selected.id);
       if (updated) setSelected(updated);
-      loadMessages(selected.id);
+      loadMessagesUpdate(selected.id);
     }
   }, [conversations]);
 
   const loadMessages = async (convId) => {
     try {
       const res = await getMessages(convId);
-      setMessages(Array.isArray(res.data) ? res.data : []);
+      const msgs = Array.isArray(res.data) ? res.data : [];
+      setMessages(msgs);
+      setTranslations({});
       await markRead(convId);
+      await translateAllMessages(msgs);
+    } catch (e) { console.error(e); }
+  };
+
+  const loadMessagesUpdate = async (convId) => {
+    try {
+      const res = await getMessages(convId);
+      const msgs = Array.isArray(res.data) ? res.data : [];
+      setMessages(msgs);
+      await markRead(convId);
+      // Sadece henüz çevrilmemiş yeni mesajları çevir
+      setTranslations(prev => {
+        const existingIds = new Set(Object.keys(prev).map(String));
+        const newMsgs = msgs.filter(m => m.body && !existingIds.has(String(m.id)));
+        if (newMsgs.length > 0) {
+          // Async çeviriyi dışarıda çalıştır
+          setTimeout(async () => {
+            for (const msg of newMsgs) {
+              const translated = await translateText(msg.body);
+              if (translated && translated !== msg.body) {
+                setTranslations(p => ({ ...p, [msg.id]: { tr: translated, showOriginal: false } }));
+              }
+            }
+          }, 0);
+        }
+        return prev;
+      });
     } catch (e) { console.error(e); }
   };
 
@@ -290,18 +352,36 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
               {messages.length === 0 && (
                 <div style={styles.noMessages}>Mesaj bulunamadı</div>
               )}
+              {translating && (
+                <div style={{ textAlign: 'center', color: '#555', fontSize: '12px', padding: '8px' }}>
+                  🌐 Mesajlar çevriliyor...
+                </div>
+              )}
               {messages.filter(msg => {
                 if (!msg.body) return false;
-                // base64 veya binary içerik filtrele
                 if (msg.body.length > 500 && !msg.body.includes(' ')) return false;
                 return true;
-              }).map((msg, i) => {
+              }).map((msg) => {
                 const isMe = msg.from_me === 1;
+                const trans = translations[msg.id];
+                const displayText = (trans && !trans.showOriginal && trans.tr) ? trans.tr : msg.body;
+                const hasTranslation = trans && trans.tr && trans.tr !== msg.body;
                 return (
                   <div key={msg.id} style={{ ...styles.msgRow, justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
                     <div style={{ ...styles.msgBubble, ...(isMe ? styles.msgBubbleMe : styles.msgBubbleThem) }}>
-                      <p style={styles.msgText}>{msg.body}</p>
-                      <span style={styles.msgTime}>{fullTime(msg.timestamp)}</span>
+                      <p style={styles.msgText}>{displayText}</p>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px' }}>
+                        {hasTranslation && (
+                          <button
+                            style={styles.translateToggleBtn}
+                            onClick={() => toggleOriginal(msg.id)}
+                            title={trans.showOriginal ? 'Türkçeye çevir' : 'Orijinali göster'}
+                          >
+                            {trans.showOriginal ? '🌐 Çevir' : '💬 Orijinal'}
+                          </button>
+                        )}
+                        <span style={styles.msgTime}>{fullTime(msg.timestamp)}</span>
+                      </div>
                     </div>
                   </div>
                 );
@@ -499,6 +579,10 @@ const styles = {
   msgBubbleThem: { background: '#1a1a24', borderBottomLeftRadius: '4px' },
   msgText: { color: '#e0e0e0', margin: '0 0 4px', fontSize: '14px', lineHeight: '1.5' },
   msgTime: { color: '#444', fontSize: '11px', float: 'right' },
+  translateToggleBtn: {
+    background: 'none', border: 'none', color: '#555',
+    fontSize: '10px', cursor: 'pointer', padding: '0',
+  },
   // Input
   inputArea: {
     display: 'flex', gap: '10px', padding: '16px 24px',
