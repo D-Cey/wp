@@ -146,6 +146,7 @@ async function createClient(numberId, label) {
   client.on('message', async (msg) => {
     try {
       if (msg.from === 'status@broadcast') return;
+      console.log(`[${numberId}] Gelen mesaj: from=${msg.from} body=${msg.body?.slice(0,30)}`);
       
       // Normalize @lid to @c.us
       let contactWaId = msg.from;
@@ -201,8 +202,9 @@ async function createClient(numberId, label) {
   // message_create - diğer cihazlardan gönderilen mesajları yakala
   client.on('message_create', async (msg) => {
     try {
-      if (!msg.fromMe) return; // Sadece kendi gönderdiğimiz mesajlar
+      if (!msg.fromMe) return;
       if (msg.from === 'status@broadcast') return;
+      console.log(`[${numberId}] Gönderilen mesaj (message_create): to=${msg.to} body=${msg.body?.slice(0,30)}`);
 
       let contactWaId = msg.to;
       let phone = '';
