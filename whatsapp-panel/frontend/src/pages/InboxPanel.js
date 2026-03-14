@@ -17,7 +17,7 @@ function fullTime(dt) {
   return new Date(dt).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function InboxPanel({ conversations: convsProp, onConversationsUpdate, numbers = [] }) {
+export default function InboxPanel({ conversations: convsProp, onConversationsUpdate, onMarkRead, onMarkAllRead, numbers = [] }) {
   const conversations = Array.isArray(convsProp) ? convsProp : [];
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -78,6 +78,7 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       setMessages(msgs);
       setTranslations({});
       await markRead(convId);
+      if (onMarkRead) onMarkRead(convId);
     } catch (e) { console.error(e); }
   };
 
@@ -87,6 +88,7 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       const msgs = Array.isArray(res.data) ? res.data : [];
       setMessages(msgs);
       await markRead(convId);
+      if (onMarkRead) onMarkRead(convId);
     } catch (e) { console.error(e); }
   };
 
@@ -161,7 +163,7 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
             onClick={async () => {
               try {
                 await Promise.all(conversations.map(c => markRead(c.id)));
-                onConversationsUpdate(conversations.map(c => ({ ...c, unread_count: 0 })));
+                if (onMarkAllRead) onMarkAllRead();
               } catch (e) { console.error('Mark all read error:', e); }
             }}
           >✓ Mark All Read</button>
@@ -244,7 +246,7 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
                           e.stopPropagation();
                           try {
                             await markRead(conv.id);
-                            onConversationsUpdate(conversations.map(c => c.id === conv.id ? { ...c, unread_count: 0 } : c));
+                            if (onMarkRead) onMarkRead(conv.id);
                           } catch (e) {}
                         }}
                         title="Okundu işaretle"

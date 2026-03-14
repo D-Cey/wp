@@ -45,6 +45,7 @@ function Dashboard() {
   };
 
   const [blockSocketUpdate, setBlockSocketUpdate] = useState(false);
+  const readSetRef = React.useRef(new Set()); // kullanıcının okudu işaretlediği conv id'leri
 
   useSocket(token, {
     onQR: ({ numberId, qr }) => {
@@ -63,24 +64,36 @@ function Dashboard() {
     },
     onMessage: (data) => {
       if (!data.fromMe) {
+        // Yeni mesaj gelince readSet'ten çıkar
+        readSetRef.current.delete(data.conversationId);
         showNotif(`💬 ${data.numberLabel}: ${data.contactName || data.phone} → ${data.body.slice(0, 40)}`);
       }
     },
     onConversationsUpdated: (convs) => {
       if (!Array.isArray(convs)) return;
-      // Kullanıcının sıfırladığı unread_count'ları koru
-      setConversations(prev => {
-        const readMap = {};
-        prev.forEach(c => { if (c.unread_count === 0) readMap[c.id] = true; });
-        return convs.map(c => readMap[c.id] ? { ...c, unread_count: 0 } : c);
-      });
+      // readSet'teki konuşmaların unread_count'unu 0 yap
+      setConversations(convs.map(c =>
+        readSetRef.current.has(c.id) ? { ...c, unread_count: 0 } : c
+      ));
     },
   });
 
   const handleConversationsUpdate = (convs) => {
-    setBlockSocketUpdate(true);
     setConversations(Array.isArray(convs) ? convs : []);
-    setTimeout(() => setBlockSocketUpdate(false), 3000);
+  };
+
+  const handleMarkRead = (convId) => {
+    readSetRef.current.add(convId);
+    setConversations(prev => prev.map(c =>
+      c.id === convId ? { ...c, unread_count: 0 } : c
+    ));
+  };
+
+  const handleMarkAllRead = () => {
+    setConversations(prev => {
+      prev.forEach(c => readSetRef.current.add(c.id));
+      return prev.map(c => ({ ...c, unread_count: 0 }));
+    });
   };
 
   const handleMessageSent = (updatedConvs, convId) => {
@@ -155,6 +168,8 @@ function Dashboard() {
           <InboxPanel
             conversations={conversations}
             onConversationsUpdate={handleConversationsUpdate}
+            onMarkRead={handleMarkRead}
+            onMarkAllRead={handleMarkAllRead}
             numbers={numbers}
           />
         )}
