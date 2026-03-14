@@ -31,13 +31,22 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
   const [translating, setTranslating] = useState(false);
   const messagesEndRef = useRef(null);
 
-  const translateText = async (text, targetLang = 'tr') => {
+  const detectLang = (text) => {
+    const arabicRegex = /[\u0600-\u06FF]/;
+    return arabicRegex.test(text) ? 'ar' : 'en';
+  };
+
+  const translateText = async (text) => {
     try {
-      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=auto|${targetLang}`);
+      const sourceLang = detectLang(text);
+      if (sourceLang === 'tr') return null; // Türkçe ise çevirme
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|tr`);
       const data = await res.json();
-      return data?.responseData?.translatedText || text;
+      const translated = data?.responseData?.translatedText;
+      if (!translated || translated.includes('INVALID') || translated.includes('MYMEMORY')) return null;
+      return translated;
     } catch {
-      return text;
+      return null;
     }
   };
 
