@@ -234,18 +234,23 @@ async function createClient(numberId, label) {
         location: '[📍 Konum]', contact_card: '[👤 Kişi]',
       };
 
-      if (contactWaId.includes('@lid')) {
+      if (contactWaId.includes('@lid') || contactWaId.includes('@s.whatsapp')) {
+        // Chat üzerinden doğru numarayı bul
         try {
-          const contact = await msg.getContact();
-          const num = contact.number || contact.id?.user;
-          if (num) {
-            phone = num;
-            contactWaId = `${num}@c.us`;
+          const chat = await msg.getChat();
+          const chatId = chat.id._serialized;
+          if (chatId.includes('@c.us')) {
+            phone = chat.id.user;
+            contactWaId = chatId;
           } else {
-            phone = contactWaId.replace(/@.*/, '');
+            // Kişi listesinde ara
+            const contact = await msg.getContact();
+            const num = contact.number || contact.id?.user;
+            phone = num || contactWaId.replace(/@.*/, '');
             contactWaId = `${phone}@c.us`;
           }
         } catch (e) {
+          console.log(`[${numberId}] message_create getChat failed: ${e.message}`);
           phone = contactWaId.replace(/@.*/, '');
           contactWaId = `${phone}@c.us`;
         }
@@ -253,6 +258,7 @@ async function createClient(numberId, label) {
         phone = contactWaId.replace(/@.*/, '');
         if (!contactWaId.includes('@c.us')) contactWaId = `${phone}@c.us`;
       }
+      console.log(`[${numberId}] message_create Final contactWaId: ${contactWaId}`);
 
       const body = msg.body || mediaLabel[msg.type] || (msg.hasMedia ? '[📎 Medya]' : '');
       if (!body) return;
