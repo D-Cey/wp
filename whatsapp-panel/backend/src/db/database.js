@@ -173,7 +173,8 @@ module.exports = {
         'INSERT OR IGNORE INTO messages (wa_message_id, conversation_id, number_id, contact_wa_id, body, from_me, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [waMessageId || null, conversationId, numberId, contactWaId, body, fromMe ? 1 : 0, timestamp]
       );
-      return result.lastID;
+      // changes === 0 means INSERT OR IGNORE skipped (duplicate)
+      return result.changes > 0 ? result.lastID : null;
     } catch (e) {
       console.error('[DB] insertMessage error:', e.message, 'body:', body?.slice(0,30));
       return null;
