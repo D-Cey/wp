@@ -160,11 +160,7 @@ async function createClient(numberId, label) {
                   msg.id._serialized, conv.id, numberId, contactWaId, body, fromMe, ts
                 );
                 if (inserted) {
-                  // Gerçekten yeni mesaj - last_message güncelle, unread sadece gelen mesajda artır
                   await db.updateLastMessageOnly(numberId, contactWaId, body, ts);
-                  if (!fromMe) {
-                    await db.incrementUnread(conv.id);
-                  }
                   newMessages.push({ numberId, contactWaId, body, fromMe, ts });
                 }
               }

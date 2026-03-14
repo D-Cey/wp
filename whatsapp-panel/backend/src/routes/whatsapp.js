@@ -78,8 +78,8 @@ router.delete('/conversations/:id', auth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-router.post('/conversations/:id/read', auth, (req, res) => {
-  db.markConversationRead(req.params.id);
+router.post('/conversations/:id/read', auth, async (req, res) => {
+  await db.markConversationRead(req.params.id);
   res.json({ success: true });
 });
 
