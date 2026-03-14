@@ -81,12 +81,12 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     }
   }, [selected?.id]);
 
-  // Update messages when new message arrives for selected conversation
+  // Yeni mesaj gelince sadece mesajları güncelle, çeviri yapma
   useEffect(() => {
     if (selected) {
       const updated = conversations.find(c => c.id === selected.id);
       if (updated) setSelected(updated);
-      loadMessagesUpdate(selected.id);
+      refreshMessages(selected.id);
     }
   }, [conversations]);
 
@@ -97,33 +97,26 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
       setMessages(msgs);
       setTranslations({});
       await markRead(convId);
-      await translateAllMessages(msgs);
+      translateAllMessages(msgs);
     } catch (e) { console.error(e); }
   };
 
-  const loadMessagesUpdate = async (convId) => {
+  // Socket güncellemelerinde sadece mesajları yükle, yeni mesajları çevir
+  const refreshMessages = async (convId) => {
     try {
       const res = await getMessages(convId);
       const msgs = Array.isArray(res.data) ? res.data : [];
       setMessages(msgs);
       await markRead(convId);
-      // Sadece henüz çevrilmemiş yeni mesajları çevir
-      setTranslations(prev => {
-        const existingIds = new Set(Object.keys(prev).map(String));
-        const newMsgs = msgs.filter(m => m.body && !existingIds.has(String(m.id)));
-        if (newMsgs.length > 0) {
-          // Async çeviriyi dışarıda çalıştır
-          setTimeout(async () => {
-            for (const msg of newMsgs) {
-              const translated = await translateText(msg.body);
-              if (translated && translated !== msg.body) {
-                setTranslations(p => ({ ...p, [msg.id]: { tr: translated, showOriginal: false } }));
-              }
-            }
-          }, 0);
+      // Sadece çevrilmemiş yeni mesajları çevir
+      const existingIds = Object.keys(translations).map(String);
+      const newMsgs = msgs.filter(m => m.body && !existingIds.includes(String(m.id)));
+      for (const msg of newMsgs) {
+        const translated = await translateText(msg.body);
+        if (translated && translated !== msg.body) {
+          setTranslations(p => ({ ...p, [msg.id]: { tr: translated, showOriginal: false } }));
         }
-        return prev;
-      });
+      }
     } catch (e) { console.error(e); }
   };
 
