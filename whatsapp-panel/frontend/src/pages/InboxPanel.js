@@ -162,9 +162,9 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
               try {
                 await Promise.all(conversations.map(c => markRead(c.id)));
                 onConversationsUpdate(conversations.map(c => ({ ...c, unread_count: 0 })));
-              } catch (e) {}
+              } catch (e) { console.error('Mark all read error:', e); }
             }}
-          >✓✓ Hepsini Okundu</button>
+          >✓ Mark All Read</button>
           <button
             style={{ ...styles.actionBtn, color: '#e74c3c', borderColor: '#3a1a1a' }}
             onClick={async () => {

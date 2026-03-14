@@ -67,8 +67,13 @@ function Dashboard() {
       }
     },
     onConversationsUpdated: (convs) => {
-      if (blockSocketUpdate) return;
-      setConversations(Array.isArray(convs) ? convs : []);
+      if (!Array.isArray(convs)) return;
+      // Kullanıcının sıfırladığı unread_count'ları koru
+      setConversations(prev => {
+        const readMap = {};
+        prev.forEach(c => { if (c.unread_count === 0) readMap[c.id] = true; });
+        return convs.map(c => readMap[c.id] ? { ...c, unread_count: 0 } : c);
+      });
     },
   });
 
