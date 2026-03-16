@@ -9,7 +9,8 @@ if (!fs.existsSync(SESSION_PATH)) fs.mkdirSync(SESSION_PATH, { recursive: true }
 
 // Active WA clients map: { numberId: Client }
 const clients = new Map();
-const lastQRs = new Map(); // Son QR'ları sakla
+const lastQRs = new Map();
+const lidToPhone = new Map(); // lid user → real phone number mapping
 let io = null;
 
 function setIO(socketIO) {
@@ -209,21 +210,28 @@ async function createClient(numberId, label) {
 
       // @lid formatını @c.us'a çevir
       if (contactWaId.includes('@lid')) {
-        try {
-          const contact = await msg.getContact();
-          const num = contact.number || contact.id?.user;
-          console.log(`[${numberId}] Contact resolution: lid=${contactWaId} number=${num} id=${contact.id?._serialized}`);
-          if (num) {
-            phone = num;
-            contactWaId = `${num}@c.us`;
-          } else {
-            phone = contactWaId.replace(/@.*/, '');
-            contactWaId = `${phone}@c.us`;
-          }
-        } catch (e) {
-          console.log(`[${numberId}] getContact failed: ${e.message}`);
-          phone = contactWaId.replace(/@.*/, '');
+        const lidUser = contactWaId.replace(/@.*/, '');
+        // Önce hafızadan bak
+        if (lidToPhone.has(lidUser)) {
+          phone = lidToPhone.get(lidUser);
           contactWaId = `${phone}@c.us`;
+        } else {
+          try {
+            const contact = await msg.getContact();
+            const num = contact.number || contact.id?.user;
+            console.log(`[${numberId}] Contact resolution: lid=${contactWaId} number=${num} id=${contact.id?._serialized}`);
+            if (num && num.length > 6) {
+              phone = num;
+              contactWaId = `${num}@c.us`;
+              lidToPhone.set(lidUser, num); // Hafızaya kaydet
+            } else {
+              phone = lidUser;
+              contactWaId = `${lidUser}@c.us`;
+            }
+          } catch (e) {
+            phone = lidUser;
+            contactWaId = `${lidUser}@c.us`;
+          }
         }
       } else {
         phone = contactWaId.replace(/@.*/, '');
@@ -291,38 +299,26 @@ async function createClient(numberId, label) {
       };
 
       if (contactWaId.includes('@lid') || contactWaId.includes('@s.whatsapp')) {
-        try {
-          // Önce client.getContactById ile dene - en güvenilir yol
-          const contact = await client.getContactById(contactWaId);
-          const num = contact.number || contact.id?.user;
-          if (num && num.length > 10) {
-            phone = num;
-            contactWaId = `${num}@c.us`;
-          } else {
-            throw new Error('number too short');
-          }
-        } catch (e) {
+        const lidUser = msg.to.replace(/@.*/, '');
+        // Önce hafızadan bak (message handler tarafından doldurulur)
+        if (lidToPhone.has(lidUser)) {
+          phone = lidToPhone.get(lidUser);
+          contactWaId = `${phone}@c.us`;
+        } else {
           try {
-            // Fallback: msg.getContact()
             const contact = await msg.getContact();
             const num = contact.number || contact.id?.user;
-            if (num && num.length > 10) {
+            if (num && num.length > 6) {
               phone = num;
               contactWaId = `${num}@c.us`;
-            } else {
-              throw new Error('number too short');
-            }
-          } catch (e2) {
-            // Son çare: mevcut DB'de bu lid'e ait konuşma var mı bak
-            const lidUser = msg.to.replace(/@.*/, '');
-            const existingConv = await db.getConversationByLidUser(numberId, lidUser);
-            if (existingConv) {
-              contactWaId = existingConv.contact_wa_id;
-              phone = contactWaId.replace('@c.us', '');
+              lidToPhone.set(lidUser, num);
             } else {
               phone = lidUser;
               contactWaId = `${lidUser}@c.us`;
             }
+          } catch (e) {
+            phone = lidUser;
+            contactWaId = `${lidUser}@c.us`;
           }
         }
       } else {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getMessages, sendMessage, markRead, updateContactName, deleteConversation } from '../api';
+import { useTheme } from '../context/ThemeContext';
 
 function timeAgo(dt) {
   if (!dt) return '';
@@ -19,6 +20,7 @@ function fullTime(dt) {
 
 export default function InboxPanel({ conversations: convsProp, onConversationsUpdate, onMarkRead, onMarkAllRead, numbers = [] }) {
   const conversations = Array.isArray(convsProp) ? convsProp : [];
+  const { theme: t } = useTheme();
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
@@ -170,6 +172,8 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
     unreadPerNumber[c.number_id] += getUnread(c);
   });
   const totalUnreadLocal = conversations.reduce((s, c) => s + getUnread(c), 0);
+
+  const styles = makeStyles(t);
 
   const displayName = (conv) => conv.contact_name || conv.contact_phone || conv.contact_wa_id;
 
@@ -398,190 +402,67 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
   );
 }
 
-const styles = {
-  container: {
-    display: 'flex', height: '100%', flex: 1,
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  // Sidebar
-  sidebar: {
-    width: '320px', minWidth: '280px',
-    background: 'var(--bg-panel)', borderRight: '1px solid var(--border)',
-    display: 'flex', flexDirection: 'column',
-  },
-  sidebarHeader: {
-    padding: '20px 20px 12px',
-    display: 'flex', alignItems: 'center', gap: '8px',
-    borderBottom: '1px solid var(--border)',
-  },
-  sidebarActions: {
-    display: 'flex', gap: '6px', padding: '8px 12px',
-    borderBottom: '1px solid var(--border)',
-  },
-  actionBtn: {
-    flex: 1, background: 'none', border: '1px solid var(--border-input)', color: 'var(--accent)',
-    borderRadius: '6px', padding: '5px 8px', fontSize: '11px',
-    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-    whiteSpace: 'nowrap',
-  },
-  convReadBtn: {
-    background: 'none', border: 'none', color: 'var(--accent)',
-    fontSize: '11px', cursor: 'pointer', padding: '1px 3px',
-    borderRadius: '3px', flexShrink: 0,
-  },
-  convCount: {
-    background: 'var(--bg-active)', color: 'var(--text-secondary)',
-    fontSize: '12px', padding: '2px 8px', borderRadius: '20px',
-  },
-  filterTabs: {
-    display: 'flex', gap: '4px', padding: '8px 12px',
-    borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
-  },
-  filterTab: {
-    background: 'none', border: '1px solid var(--border-input)', color: 'var(--text-secondary)',
-    borderRadius: '20px', padding: '4px 10px', fontSize: '12px',
-    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-    display: 'flex', alignItems: 'center', gap: '4px',
-    transition: 'all 0.15s',
-  },
-  filterTabActive: {
-    background: 'var(--accent-bg)', borderColor: 'var(--accent)', color: 'var(--accent)',
-  },
-  filterBadge: {
-    background: 'var(--accent)', color: '#000',
-    fontSize: '10px', fontWeight: '700',
-    padding: '1px 5px', borderRadius: '20px',
-  },
-  searchInput: {
-    width: '100%', background: 'var(--bg-input)', border: '1px solid var(--border-input)',
-    borderRadius: '8px', padding: '8px 12px', color: 'var(--text-primary)', fontSize: '14px',
-    outline: 'none', fontFamily: "'DM Sans', sans-serif",
-    boxSizing: 'border-box',
-  },
+function makeStyles(t) {
+  return {
+  container: { display: 'flex', height: '100%', flex: 1, fontFamily: "'DM Sans', sans-serif" },
+  sidebar: { width: '320px', minWidth: '280px', background: t.bgPanel, borderRight: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', boxShadow: t.shadow },
+  sidebarHeader: { padding: '20px 20px 12px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: `1px solid ${t.border}` },
+  sidebarActions: { display: 'flex', gap: '6px', padding: '8px 12px', borderBottom: `1px solid ${t.border}` },
+  actionBtn: { flex: 1, background: 'none', border: `1px solid ${t.borderInput}`, color: t.accent, borderRadius: '6px', padding: '5px 8px', fontSize: '11px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' },
+  convReadBtn: { background: 'none', border: 'none', color: t.accent, fontSize: '11px', cursor: 'pointer', padding: '1px 3px', borderRadius: '3px', flexShrink: 0 },
+  convCount: { background: t.bgActive, color: t.textSecondary, fontSize: '12px', padding: '2px 8px', borderRadius: '20px' },
+  filterTabs: { display: 'flex', gap: '4px', padding: '8px 12px', borderBottom: `1px solid ${t.border}`, flexWrap: 'wrap' },
+  filterTab: { background: 'none', border: `1px solid ${t.borderInput}`, color: t.textSecondary, borderRadius: '20px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: '4px' },
+  filterTabActive: { background: t.accentBg, borderColor: t.accent, color: t.accent },
+  filterBadge: { background: t.accent, color: '#000', fontSize: '10px', fontWeight: '700', padding: '1px 5px', borderRadius: '20px' },
+  searchWrap: { padding: '8px 12px', borderBottom: `1px solid ${t.border}` },
+  searchInput: { width: '100%', background: t.bgInput, border: `1px solid ${t.borderInput}`, borderRadius: '8px', padding: '8px 12px', color: t.textPrimary, fontSize: '14px', outline: 'none', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box' },
   convList: { flex: 1, overflowY: 'auto' },
-  emptyConvs: { textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' },
-  emptyHint: { fontSize: '13px', color: 'var(--text-very-dim)', marginTop: '8px' },
-  convItem: {
-    display: 'flex', gap: '12px', padding: '14px 16px',
-    cursor: 'pointer', borderBottom: '1px solid var(--border)',
-    transition: 'background 0.15s',
-  },
-  convItemActive: { background: 'var(--bg-hover)' },
-  convAvatar: {
-    width: '42px', height: '42px', borderRadius: '50%',
-    background: 'var(--accent-bg)', color: 'var(--accent)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '16px', fontWeight: '600', flexShrink: 0,
-  },
+  emptyConvs: { textAlign: 'center', padding: '40px 20px', color: t.textDim },
+  emptyHint: { fontSize: '13px', color: t.textVeryDim, marginTop: '8px' },
+  convItem: { display: 'flex', gap: '12px', padding: '14px 16px', cursor: 'pointer', borderBottom: `1px solid ${t.border}`, transition: 'background 0.15s' },
+  convItemActive: { background: t.bgHover },
+  convAvatar: { width: '42px', height: '42px', borderRadius: '50%', background: t.accentBg, color: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '600', flexShrink: 0 },
   convContent: { flex: 1, minWidth: 0 },
   convTopRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' },
-  convName: { color: 'var(--text-primary)', fontSize: '14px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  convTime: { color: 'var(--text-dim)', fontSize: '11px', flexShrink: 0 },
-  convDeleteBtn: {
-    background: 'none', border: 'none', color: 'var(--text-dim)',
-    fontSize: '11px', cursor: 'pointer', padding: '1px 4px',
-    borderRadius: '4px', flexShrink: 0,
-    transition: 'color 0.15s',
-  },
+  convName: { color: t.textPrimary, fontSize: '14px', fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  convTime: { color: t.textDim, fontSize: '11px', flexShrink: 0 },
+  convDeleteBtn: { background: 'none', border: 'none', color: t.textDim, fontSize: '11px', cursor: 'pointer', padding: '1px 4px', borderRadius: '4px', flexShrink: 0 },
   convBottomRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  convPreview: { color: 'var(--text-muted)', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
-  convNumberTag: {
-    background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '10px',
-    padding: '1px 5px', borderRadius: '3px', marginRight: '6px',
-    fontWeight: '600',
-  },
-  unreadBadge: {
-    background: 'var(--accent)', color: '#000',
-    fontSize: '11px', fontWeight: '700',
-    padding: '1px 6px', borderRadius: '20px',
-    flexShrink: 0, marginLeft: '8px',
-  },
-  // Chat area
-  chatArea: {
-    flex: 1, display: 'flex', flexDirection: 'column',
-    background: 'var(--bg-main)', overflow: 'hidden', minHeight: 0,
-  },
-  noChatSelected: {
-    flex: 1, display: 'flex', flexDirection: 'column',
-    alignItems: 'center', justifyContent: 'center', gap: '12px',
-  },
+  convPreview: { color: t.textMuted, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 },
+  convNumberTag: { background: t.accentBg, color: t.accent, fontSize: '10px', padding: '1px 5px', borderRadius: '3px', marginRight: '6px', fontWeight: '600' },
+  unreadBadge: { background: t.accent, color: '#000', fontSize: '11px', fontWeight: '700', padding: '1px 6px', borderRadius: '20px', flexShrink: 0, marginLeft: '8px' },
+  chatArea: { flex: 1, display: 'flex', flexDirection: 'column', background: t.bgMain, overflow: 'hidden', minHeight: 0 },
+  noChatSelected: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '12px' },
   noChatIcon: { fontSize: '48px', opacity: 0.3 },
-  noChatTitle: { color: 'var(--text-very-dim)', margin: 0, fontWeight: '400' },
-  noChatHint: { color: 'var(--text-very-dim)', fontSize: '14px' },
-  // Chat header
-  chatHeader: {
-    display: 'flex', alignItems: 'center', gap: '14px',
-    padding: '16px 24px', borderBottom: '1px solid var(--border)',
-    background: 'var(--bg-panel)',
-  },
-  chatAvatar: {
-    width: '42px', height: '42px', borderRadius: '50%',
-    background: 'var(--accent-bg)', color: 'var(--accent)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '16px', fontWeight: '600',
-  },
+  noChatTitle: { color: t.textVeryDim, margin: 0, fontWeight: '400' },
+  noChatHint: { color: t.textVeryDim, fontSize: '14px' },
+  chatHeader: { display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 24px', borderBottom: `1px solid ${t.border}`, background: t.bgPanel, boxShadow: t.shadow },
+  chatAvatar: { width: '42px', height: '42px', borderRadius: '50%', background: t.accentBg, color: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '600' },
   chatHeaderInfo: { flex: 1 },
   chatNameRow: { display: 'flex', alignItems: 'center', gap: '8px' },
-  chatName: { color: 'var(--text-primary)', fontSize: '16px', fontWeight: '500' },
-  editNameBtn: {
-    background: 'none', border: 'none', cursor: 'pointer',
-    fontSize: '14px', padding: '2px', opacity: 0.5,
-  },
+  chatName: { color: t.textPrimary, fontSize: '16px', fontWeight: '500' },
+  editNameBtn: { background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px', opacity: 0.5 },
   nameEditRow: { display: 'flex', gap: '8px', alignItems: 'center' },
-  nameInput: {
-    background: 'var(--bg-input)', border: '1px solid var(--border-input)', borderRadius: '6px',
-    padding: '4px 10px', color: 'var(--text-primary)', fontSize: '14px', outline: 'none',
-    fontFamily: "'DM Sans', sans-serif",
-  },
-  saveNameBtn: {
-    background: 'var(--accent)', color: '#000', border: 'none',
-    borderRadius: '6px', padding: '4px 12px', fontSize: '13px',
-    fontWeight: '600', cursor: 'pointer',
-  },
-  cancelNameBtn: {
-    background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border-input)',
-    borderRadius: '6px', padding: '4px 10px', fontSize: '13px', cursor: 'pointer',
-  },
+  nameInput: { background: t.bgInput, border: `1px solid ${t.borderInput}`, borderRadius: '6px', padding: '4px 10px', color: t.textPrimary, fontSize: '14px', outline: 'none', fontFamily: "'DM Sans', sans-serif" },
+  saveNameBtn: { background: t.accent, color: '#000', border: 'none', borderRadius: '6px', padding: '4px 12px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' },
+  cancelNameBtn: { background: 'none', color: t.textSecondary, border: `1px solid ${t.borderInput}`, borderRadius: '6px', padding: '4px 10px', fontSize: '13px', cursor: 'pointer' },
   chatMeta: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' },
-  chatPhone: { color: 'var(--text-muted)', fontSize: '12px' },
-  chatMetaDot: { color: 'var(--text-dim)' },
-  chatNumberTag: {
-    background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px',
-    padding: '1px 6px', borderRadius: '3px', fontWeight: '600',
-  },
-  // Messages
-  messages: {
-    flex: 1, overflowY: 'auto', padding: '20px 24px',
-    display: 'flex', flexDirection: 'column', gap: '8px',
-  },
-  noMessages: { color: 'var(--text-dim)', textAlign: 'center', marginTop: '40px' },
+  chatPhone: { color: t.textMuted, fontSize: '12px' },
+  chatMetaDot: { color: t.textDim },
+  chatNumberTag: { background: t.accentBg, color: t.accent, fontSize: '11px', padding: '1px 6px', borderRadius: '3px', fontWeight: '600' },
+  messages: { flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '8px' },
+  noMessages: { color: t.textDim, textAlign: 'center', marginTop: '40px' },
   msgRow: { display: 'flex' },
-  msgBubble: {
-    maxWidth: '60%', minWidth: '80px', padding: '10px 14px', borderRadius: '12px',
-    wordBreak: 'break-word', display: 'inline-block',
-  },
-  msgBubbleMe: { background: 'var(--bg-bubble-me)', borderBottomRightRadius: '4px' },
-  msgBubbleThem: { background: 'var(--bg-bubble-them)', borderBottomLeftRadius: '4px' },
-  msgText: { color: 'var(--text-primary)', margin: '0 0 4px', fontSize: '14px', lineHeight: '1.5' },
-  msgTime: { color: 'var(--text-dim)', fontSize: '11px', float: 'right' },
-  translateToggleBtn: {
-    background: 'none', border: 'none', color: 'var(--text-muted)',
-    fontSize: '10px', cursor: 'pointer', padding: '0',
-  },
-  // Input
-  inputArea: {
-    display: 'flex', gap: '10px', padding: '16px 24px',
-    borderTop: '1px solid var(--border)', background: 'var(--bg-panel)',
-  },
-  messageInput: {
-    flex: 1, background: 'var(--bg-input)', border: '1px solid var(--border-input)',
-    borderRadius: '10px', padding: '12px 16px', color: 'var(--text-primary)',
-    fontSize: '14px', outline: 'none', fontFamily: "'DM Sans', sans-serif",
-    resize: 'none',
-  },
-  sendBtn: {
-    background: 'var(--accent)', color: '#000', border: 'none',
-    borderRadius: '10px', padding: '12px 18px',
-    fontSize: '18px', cursor: 'pointer', flexShrink: 0,
-  },
-};
+  msgBubble: { maxWidth: '60%', minWidth: '80px', padding: '10px 14px', borderRadius: '12px', wordBreak: 'break-word', display: 'inline-block' },
+  msgBubbleMe: { background: t.bgBubbleMe, borderBottomRightRadius: '4px' },
+  msgBubbleThem: { background: t.bgBubbleThem, borderBottomLeftRadius: '4px', boxShadow: t.shadow },
+  msgText: { color: t.textPrimary, margin: '0 0 4px', fontSize: '14px', lineHeight: '1.5' },
+  msgTime: { color: t.textDim, fontSize: '11px', float: 'right' },
+  translateToggleBtn: { background: 'none', border: 'none', color: t.textMuted, fontSize: '10px', cursor: 'pointer', padding: '0' },
+  inputArea: { display: 'flex', gap: '10px', padding: '16px 24px', borderTop: `1px solid ${t.border}`, background: t.bgPanel },
+  messageInput: { flex: 1, background: t.bgInput, border: `1px solid ${t.borderInput}`, borderRadius: '10px', padding: '12px 16px', color: t.textPrimary, fontSize: '14px', outline: 'none', fontFamily: "'DM Sans', sans-serif", resize: 'none' },
+  sendBtn: { background: t.accent, color: '#000', border: 'none', borderRadius: '10px', padding: '12px 18px', fontSize: '18px', cursor: 'pointer', flexShrink: 0 },
+  sidebarTitle: { color: t.textPrimary, margin: 0, fontSize: '17px', fontWeight: '600', flex: 1 },
+  };
+}
