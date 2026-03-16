@@ -44,7 +44,14 @@ function Dashboard() {
     setTimeout(() => setNotification(null), 3000);
   };
 
-  const [blockSocketUpdate, setBlockSocketUpdate] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    return localStorage.getItem('wa_theme') !== 'light';
+  });
+
+  useEffect(() => {
+    document.body.classList.toggle('light', !isDark);
+    localStorage.setItem('wa_theme', isDark ? 'dark' : 'light');
+  }, [isDark]);
   const readSetRef = React.useRef(new Set());
 
   useSocket(token, {
@@ -159,6 +166,9 @@ function Dashboard() {
           <button style={styles.settingsBtn} onClick={() => setShowNumbers(true)}>
             ⚙️ Numaralar
           </button>
+          <button style={styles.themeBtn} onClick={() => setIsDark(d => !d)} title="Tema değiştir">
+            {isDark ? '☀️' : '🌙'}
+          </button>
           <button style={styles.logoutBtn} onClick={logout}>
             Çıkış
           </button>
@@ -212,7 +222,7 @@ export default function App() {
 
 const styles = {
   app: {
-    height: '100vh', background: '#0a0a0f',
+    height: '100vh', background: 'var(--bg-main)',
     display: 'flex', flexDirection: 'column',
     fontFamily: "'DM Sans', sans-serif",
     overflow: 'hidden',
@@ -225,22 +235,22 @@ const styles = {
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '0 24px', background: '#0d0d14', borderBottom: '1px solid #1a1a24',
+    padding: '0 24px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)',
     height: '56px', flexShrink: 0,
   },
   headerLeft: { display: 'flex', alignItems: 'center', gap: '24px' },
-  logo: { color: '#fff', fontWeight: '600', fontSize: '16px' },
+  logo: { color: 'var(--text-primary)', fontWeight: '600', fontSize: '16px' },
   tabs: { display: 'flex', gap: '4px' },
   tab: {
-    background: 'none', border: 'none', color: '#555',
+    background: 'none', border: 'none', color: 'var(--text-muted)',
     padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
     fontSize: '14px', fontWeight: '500', fontFamily: "'DM Sans', sans-serif",
     display: 'flex', alignItems: 'center', gap: '6px',
     transition: 'all 0.15s',
   },
-  tabActive: { background: '#1e1e2e', color: '#fff' },
+  tabActive: { background: 'var(--bg-active)', color: 'var(--text-primary)' },
   tabBadge: {
-    background: '#25d366', color: '#000',
+    background: 'var(--accent)', color: '#000',
     fontSize: '11px', fontWeight: '700',
     padding: '1px 6px', borderRadius: '20px',
   },
@@ -254,12 +264,17 @@ const styles = {
   numberStatus: { display: 'flex', gap: '6px', alignItems: 'center' },
   numDot: { width: '8px', height: '8px', borderRadius: '50%' },
   settingsBtn: {
-    background: '#1e1e2e', color: '#888', border: 'none',
+    background: 'var(--bg-active)', color: 'var(--text-secondary)', border: 'none',
     borderRadius: '8px', padding: '6px 14px', fontSize: '13px',
     cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
   },
+  themeBtn: {
+    background: 'none', border: '1px solid var(--border-input)', color: 'var(--text-secondary)',
+    borderRadius: '8px', padding: '5px 10px', fontSize: '15px',
+    cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+  },
   logoutBtn: {
-    background: 'none', color: '#555', border: '1px solid #2a2a3a',
+    background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border-input)',
     borderRadius: '8px', padding: '6px 14px', fontSize: '13px',
     cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
   },

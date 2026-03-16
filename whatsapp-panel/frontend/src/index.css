@@ -6,3 +6,50 @@ body { background: #0a0a0f; color: #fff; font-family: 'DM Sans', sans-serif; -we
 ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 2px; }
 input:focus, textarea:focus, select:focus { border-color: #25d366 !important; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+/* Dark theme (default) */
+:root {
+  --bg-main: #0a0a0f;
+  --bg-panel: #0d0d14;
+  --bg-card: #111118;
+  --bg-input: #111118;
+  --bg-hover: #111118;
+  --bg-active: #1e1e2e;
+  --bg-bubble-me: #1e3a1e;
+  --bg-bubble-them: #1a1a24;
+  --border: #1a1a24;
+  --border-input: #2a2a3a;
+  --text-primary: #ffffff;
+  --text-secondary: #888;
+  --text-muted: #555;
+  --text-dim: #444;
+  --text-very-dim: #333;
+  --accent: #25d366;
+  --accent-bg: #1a2a1a;
+  --scrollbar: #2a2a3a;
+}
+
+/* Light theme */
+body.light {
+  --bg-main: #f0f2f5;
+  --bg-panel: #ffffff;
+  --bg-card: #f8f9fa;
+  --bg-input: #f0f2f5;
+  --bg-hover: #f0f2f5;
+  --bg-active: #e8f5e9;
+  --bg-bubble-me: #dcf8c6;
+  --bg-bubble-them: #ffffff;
+  --border: #e0e0e0;
+  --border-input: #d0d0d0;
+  --text-primary: #111111;
+  --text-secondary: #555;
+  --text-muted: #777;
+  --text-dim: #999;
+  --text-very-dim: #bbb;
+  --accent: #25d366;
+  --accent-bg: #e8f5e9;
+  --scrollbar: #d0d0d0;
+}
+
+body.light { background: var(--bg-main); color: var(--text-primary); }
+body.light ::-webkit-scrollbar-thumb { background: var(--scrollbar); }
