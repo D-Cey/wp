@@ -31,24 +31,24 @@ input:focus, textarea:focus, select:focus { border-color: #25d366 !important; }
 
 /* Light theme */
 body.light {
-  --bg-main: #f0f2f5;
-  --bg-panel: #ffffff;
-  --bg-card: #f8f9fa;
-  --bg-input: #f0f2f5;
-  --bg-hover: #f0f2f5;
-  --bg-active: #e8f5e9;
-  --bg-bubble-me: #dcf8c6;
-  --bg-bubble-them: #ffffff;
-  --border: #e0e0e0;
-  --border-input: #d0d0d0;
-  --text-primary: #111111;
-  --text-secondary: #555;
-  --text-muted: #777;
-  --text-dim: #999;
-  --text-very-dim: #bbb;
-  --accent: #25d366;
-  --accent-bg: #e8f5e9;
-  --scrollbar: #d0d0d0;
+  --bg-main: #eef0f4;
+  --bg-panel: #f7f8fa;
+  --bg-card: #f0f2f5;
+  --bg-input: #eef0f4;
+  --bg-hover: #e8eaed;
+  --bg-active: #e2f0e8;
+  --bg-bubble-me: #d5f5c8;
+  --bg-bubble-them: #f0f2f5;
+  --border: #e2e5ea;
+  --border-input: #d0d4db;
+  --text-primary: #1a1a2e;
+  --text-secondary: #5a6070;
+  --text-muted: #7a8090;
+  --text-dim: #9aa0ae;
+  --text-very-dim: #b8bdc8;
+  --accent: #1da851;
+  --accent-bg: #e8f5ee;
+  --scrollbar: #c8cdd8;
 }
 
 body.light { background: var(--bg-main); color: var(--text-primary); }
