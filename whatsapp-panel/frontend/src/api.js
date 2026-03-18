@@ -1,10 +1,17 @@
 import axios from 'axios';
 
-const API = axios.create({ baseURL: '/api' });
+const API_BASE = window.location.hostname === 'localhost' 
+  ? 'http://localhost:3001/api' 
+  : '/api';
+
+const API = axios.create({ baseURL: API_BASE });
 
 API.interceptors.request.use((config) => {
   const token = localStorage.getItem('wa_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  // Cache'i engelle
+  config.headers['Cache-Control'] = 'no-cache, no-store';
+  config.headers['Pragma'] = 'no-cache';
   return config;
 });
 
