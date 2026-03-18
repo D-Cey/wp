@@ -119,6 +119,9 @@ export default function InboxPanel({ conversations: convsProp, onConversationsUp
 
   const selectConversation = async (conv) => {
     setSelected(conv);
+    setMessages([]);
+    setTranslations({});
+    lastConvUpdateRef.current = null; // Sıfırla
     setEditingName(false);
     setNameInput('');
   };
